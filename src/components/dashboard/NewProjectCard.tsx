@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +15,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
-interface NewProjectDialogProps {
+interface NewProjectCardProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   newProject: { title: string; description: string };
@@ -24,7 +25,7 @@ interface NewProjectDialogProps {
   onCreateProject: () => void;
 }
 
-const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
+const NewProjectCard: React.FC<NewProjectCardProps> = ({
   isOpen,
   onOpenChange,
   newProject,
@@ -34,10 +35,17 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          New Project
-        </Button>
+        <Card className="group relative overflow-hidden transition-all hover:shadow-lg border-dashed border-2 border-primary/30 hover:border-primary dark:border-primary/20 dark:hover:border-primary/60 h-[200px] flex flex-col cursor-pointer">
+          <CardContent className="flex flex-col items-center justify-center h-full py-6 text-center">
+            <div className="rounded-full bg-primary/10 dark:bg-primary/20 p-4 mb-4 transform group-hover:scale-110 transition-transform">
+              <Plus className="h-6 w-6 text-primary dark:text-primary" />
+            </div>
+            <h3 className="text-lg font-medium mb-1 text-foreground dark:text-foreground">Create New Project</h3>
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
+              Add a new project to your dashboard
+            </p>
+          </CardContent>
+        </Card>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -79,4 +87,4 @@ const NewProjectDialog: React.FC<NewProjectDialogProps> = ({
   );
 };
 
-export default NewProjectDialog;
+export default NewProjectCard;
