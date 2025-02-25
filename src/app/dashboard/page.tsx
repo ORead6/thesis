@@ -31,22 +31,20 @@ export default function ProjectsPage() {
   const filteredProjects = projects.filter(
     (project) =>
       project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      (project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
   );
 
   const handleCreateProject = () => {
     if (newProject.title.trim()) {
-      setProjects([
-        ...projects,
-        {
-          id: Math.random().toString(36).substr(2, 9),
-          title: newProject.title,
-          description: newProject.description || null,
-          isFavorite: false,
-        },
-      ]);
+      const newProjectObject = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: newProject.title,
+        description: newProject.description || null,
+        isFavorite: false,
+      };
+      
+      setProjects(prevProjects => [...prevProjects, newProjectObject]);
       setNewProject({ title: "", description: "" });
-      setIsDialogOpen(false);
     }
   };
 
@@ -97,7 +95,7 @@ export default function ProjectsPage() {
             )}
             
             {/* Project Cards */}
-            {filteredProjects.map((project : Project) => (
+            {filteredProjects.map((project) => (
               <ProjectCard
                 key={project.id}
                 project={project}

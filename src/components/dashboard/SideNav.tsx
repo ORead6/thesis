@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  FolderGit2,
   Users2,
   Settings,
   BarChart3,
@@ -33,11 +32,6 @@ const navItems: NavItem[] = [
     title: "Dashboard",
     href: "/dashboard",
     icon: <LayoutDashboard className="w-5 h-5" />,
-  },
-  {
-    title: "Projects",
-    href: "/dashboard/projects",
-    icon: <FolderGit2 className="w-5 h-5" />,
   },
   {
     title: "Team",
