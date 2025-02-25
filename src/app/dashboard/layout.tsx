@@ -9,7 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen min-w-[100%]">
         <SideNav className="shrink-0" />
         <main className="flex-1 px-4 md:px-6 pt-16 md:pt-4">
           {children}

@@ -64,7 +64,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-7xl mx-auto w-full space-y-8">
       {/* Page Header */}
       <div className="flex flex-col space-y-2">
         <h1 className="text-4xl font-extrabold tracking-tight">Projects</h1>
@@ -74,8 +74,8 @@ export default function ProjectsPage() {
       </div>
 
       {/* Search and Actions Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between dark:bg-slate-900/60 rounded-lg p-3 border shadow-md">
-        <div className="w-full sm:w-auto max-w-md flex-1">
+      <div className="w-min-[100%] flex flex-col sm:flex-row gap-4 items-center justify-between dark:bg-slate-900/60 rounded-lg p-3 border shadow-md">
+        <div className="w-min-[100%] flex-1">
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
 
@@ -88,31 +88,33 @@ export default function ProjectsPage() {
         />
       </div>
 
-      {/* Projects Grid */}
-      {filteredProjects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onToggleFavorite={toggleFavorite}
-              onDelete={deleteProject}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="bg-card border border-dashed rounded-lg flex flex-col items-center justify-center py-20 text-center">
-          <div className="bg-muted rounded-full p-5 mb-4">
-            <Inbox className="h-10 w-10 text-muted-foreground" />
+      {/* Projects Container */}
+      <div className="w-full">
+        {filteredProjects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredProjects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onToggleFavorite={toggleFavorite}
+                onDelete={deleteProject}
+              />
+            ))}
           </div>
-          <h3 className="text-2xl font-semibold mb-2">No projects found</h3>
-          <p className="text-muted-foreground max-w-md mb-6">
-            {searchQuery
-              ? "Try adjusting your search to find what you're looking for."
-              : "Create your first project to get started with your team."}
-          </p>
-        </div>
-      )}
+        ) : (
+          <div className="w-full bg-card border border-dashed rounded-lg flex flex-col items-center justify-center py-20 text-center min-h-[400px]">
+            <div className="bg-muted rounded-full p-5 mb-4">
+              <Inbox className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="text-2xl font-semibold mb-2">No projects found</h3>
+            <p className="text-muted-foreground max-w-md mb-6">
+              {searchQuery
+                ? "Try adjusting your search to find what you're looking for."
+                : "Create your first project to get started with your team."}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
