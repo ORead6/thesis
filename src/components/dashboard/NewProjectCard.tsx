@@ -114,15 +114,11 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
     const supabaseFilePath = `projects/${userData!.id}/${uuid}`;
 
     const projectDataForDB = {
+      id: uuid,
       title: projectData.title,
       description: projectData.description,
       icon: projectData.icon,
-      fileData: projectData.csvFile ? {
-        fileName: projectData.csvFile.name,
-        fileSize: projectData.csvFile.size,
-        fileType: projectData.csvFile.type,
-        lastModified: projectData.csvFile.lastModified,
-      } : null,
+      dataFilePath: supabaseFilePath,
       createdAt: new Date().toISOString(),
       owner: userData!.id,
       metadata: {} // Empty object for future use
