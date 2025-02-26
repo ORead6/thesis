@@ -5,7 +5,7 @@ export interface Project {
   icon?: string;
   isFavourite: boolean;
   dataFilePath?: string;
-  createdAt?: string;
+  createdAt: string;
   owner: string;
   metadata?: Record<string, any>;
 }
