@@ -31,12 +31,9 @@ export default function RegisterPage() {
     }
     
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/dashboard");
-    }, 1500);
+
+    setIsLoading(false);
+    router.push("/dashboard");
   };
 
   return (
