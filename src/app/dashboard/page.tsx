@@ -1,32 +1,65 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import SearchBar from "@/components/dashboard/SearchBar";
 import ProjectCard from "@/components/dashboard/ProjectCard";
 import NewProjectCard from "@/components/dashboard/NewProjectCard";
 import { Inbox } from "lucide-react";
 import type { Project } from "@/types/project";
+import { createClient } from "@/utils/supabase/client";
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: "1",
-      title: "Website Redesign",
-      description: "Complete overhaul of the company website",
-      isFavorite: true,
-    },
-    {
-      id: "2",
-      title: "Mobile App",
-      description: null,
-      isFavorite: false,
-    },
-    // Additional sample projects...
-  ]);
-
+  const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [newProject, setNewProject] = useState({ title: "", description: "" });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch user's projects on component mount
+  useEffect(() => {
+    async function fetchUserProjects() {
+      setLoading(true);
+      const supabase = createClient();
+      
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (!userData?.user) {
+        console.error("User not authenticated");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch projects owned by the user
+      const { data: projects, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("owner", userData.user.id);
+
+      if (error) {
+        console.error("Error fetching projects:", error);
+      } else {
+        // Transform Supabase data to match your Project type
+        const formattedProjects = projects.map(project => ({
+          id: project.id,
+          title: project.title,
+          description: project.description || null,
+          icon: project.icon || "file-text",
+          isFavourite: project.isFavourite || false,
+          dataFilePath: project.dataFilePath || "",
+          createdAt: project.createdAt || new Date().toISOString(),
+          owner: project.owner,
+          metadata: project.metadata || {}
+        }));
+        
+        setProjects(formattedProjects);
+      }
+      
+      setLoading(false);
+    }
+
+    fetchUserProjects();
+  }, []);
 
   const filteredProjects = projects.filter(
     (project) =>
@@ -35,31 +68,88 @@ export default function ProjectsPage() {
   );
 
   const handleCreateProject = () => {
-    if (newProject.title.trim()) {
-      const newProjectObject = {
-        id: Math.random().toString(36).substr(2, 9),
-        title: newProject.title,
-        description: newProject.description || null,
-        isFavorite: false,
-      };
+    // This function is called from the NewProjectCard component
+    // It will refresh the projects list after creating a new project
+    refreshProjects();
+  };
+
+  const refreshProjects = async () => {
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    
+    if (!userData?.user) {
+      console.error("User not authenticated");
+      return;
+    }
+
+    const { data: projects, error } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("owner", userData.user.id);
+
+    if (error) {
+      console.error("Error fetching projects:", error);
+    } else {
+      const formattedProjects = projects.map(project => ({
+        id: project.id,
+        title: project.title,
+        description: project.description || null,
+        icon: project.icon || "file-text",
+        isFavourite: project.isFavourite || false,
+        dataFilePath: project.dataFilePath || "",
+        createdAt: project.createdAt || new Date().toISOString(),
+        owner: project.owner,
+        metadata: project.metadata || {}
+      }));
       
-      setProjects(prevProjects => [...prevProjects, newProjectObject]);
-      setNewProject({ title: "", description: "" });
+      setProjects(formattedProjects);
     }
   };
 
-  const toggleFavorite = (id: string) => {
+  const toggleFavourite = async (id: string) => {
+    // Find the project to toggle
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+
+    // Update locally first for immediate UI feedback
     setProjects(
       projects.map((project) =>
         project.id === id
-          ? { ...project, isFavorite: !project.isFavorite }
+          ? { ...project, isFavourite: !project.isFavourite }
           : project
       )
     );
+
+    // Update in database
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("projects")
+      .update({ isFavourite: !project.isFavourite })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating favourite status:", error);
+      // Revert the local change if the server update failed
+      refreshProjects();
+    }
   };
 
-  const deleteProject = (id: string) => {
+  const deleteProject = async (id: string) => {
+    // Update locally first for immediate UI feedback
     setProjects(projects.filter((project) => project.id !== id));
+
+    // Delete from database
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("projects")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting project:", error);
+      // Revert the local change if the server delete failed
+      refreshProjects();
+    }
   };
 
   return (
@@ -81,7 +171,9 @@ export default function ProjectsPage() {
 
       {/* Projects Container */}
       <div className="w-full">
-        {filteredProjects.length > 0 || !searchQuery ? (
+        {loading ? (
+          <div className="text-center py-10">Loading your projects...</div>
+        ) : filteredProjects.length > 0 || !searchQuery ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* New Project Card - always first in the grid */}
             {!searchQuery && (
@@ -99,19 +191,17 @@ export default function ProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
-                onToggleFavorite={toggleFavorite}
+                onToggleFavourite={toggleFavourite}
                 onDelete={deleteProject}
               />
             ))}
           </div>
         ) : (
-          <div className="w-full bg-card border border-dashed rounded-lg flex flex-col items-center justify-center py-16 text-center">
-            <div className="bg-muted rounded-full p-4 mb-4">
-              <Inbox className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">No projects found</h3>
-            <p className="text-muted-foreground max-w-md mb-6">
-              Try adjusting your search to find what you&apos;re looking for.
+          <div className="text-center py-10">
+            <Inbox className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No projects found</h3>
+            <p className="text-muted-foreground">
+              We couldn't find any projects that match your search query.
             </p>
           </div>
         )}

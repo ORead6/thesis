@@ -8,11 +8,11 @@ import type { Project } from "@/types/project";
 
 interface ProjectCardProps {
   project: Project;
-  onToggleFavorite: (id: string) => void;
+  onToggleFavourite: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavorite, onDelete }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, onDelete }) => {
   return (
     <Card className="group relative overflow-hidden transition-all hover:shadow-lg border-l-4 hover:border-l-primary dark:border-l-accent dark:hover:border-l-primary h-[200px] flex flex-col">
       <CardHeader className="relative pb-2">
@@ -20,12 +20,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavorite, on
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onToggleFavorite(project.id)}
+            onClick={() => onToggleFavourite(project.id)}
             className="h-8 w-8 hover:bg-yellow-100 dark:hover:bg-yellow-900/20 rounded-full"
-            aria-label={project.isFavorite ? "Remove from favorites" : "Add to favorites"}
+            aria-label={project.isFavourite ? "Remove from favourites" : "Add to favourites"}
           >
             <Star
-              className={`h-4 w-4 transition-all ${project.isFavorite
+              className={`h-4 w-4 transition-all ${project.isFavourite
                 ? "fill-yellow-400 text-yellow-400"
                 : "text-muted-foreground hover:text-yellow-400"
               }`}
@@ -48,7 +48,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavorite, on
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
               <CardTitle className="line-clamp-1 text-lg text-foreground dark:text-foreground">{project.title}</CardTitle>
-              {project.isFavorite && (
+              {project.isFavourite && (
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
               )}
             </div>

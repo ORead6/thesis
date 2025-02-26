@@ -101,7 +101,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
     }
 
     const supabase = createClient();
-    const {data} = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
 
     if (!data) {
       console.error("User not authenticated");
@@ -119,6 +119,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
       description: projectData.description,
       icon: projectData.icon,
       dataFilePath: supabaseFilePath,
+      isFavourite: false,
       createdAt: new Date().toISOString(),
       owner: userData!.id,
       metadata: {} // Empty object for future use
