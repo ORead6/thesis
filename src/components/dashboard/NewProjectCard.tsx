@@ -117,12 +117,13 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
       id: uuid,
       title: projectData.title,
       description: projectData.description,
-      icon: projectData.icon,
-      dataFilePath: supabaseFilePath,
-      isFavourite: false,
-      createdAt: new Date().toISOString(),
       owner: userData!.id,
-      metadata: {} // Empty object for future use
+      metadata: {
+        isFavourite: false,
+        icon: projectData.icon,
+        dataFilePath: supabaseFilePath,
+        createdAt: new Date().toISOString(),
+      }
     };
 
     const { error } = await supabase.from("projects").insert([projectDataForDB]);

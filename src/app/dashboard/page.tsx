@@ -40,14 +40,14 @@ export default function ProjectsPage() {
         console.error("Error fetching projects:", error);
       } else {
         // Transform Supabase data to match your Project type
-        const formattedProjects = projects.map(project => ({
+        const formattedProjects = projects.map((project) => ({
           id: project.id,
           title: project.title,
           description: project.description || null,
-          icon: project.icon || "file-text",
-          isFavourite: project.isFavourite || false,
-          dataFilePath: project.dataFilePath || "",
-          createdAt: project.createdAt || new Date().toISOString(),
+          icon: project.metadata?.icon || "file-text",
+          isFavourite: project.metadata?.isFavourite || false,
+          dataFilePath: project.metadata?.dataFilePath || "",
+          createdAt: project.metadata?.createdAt || new Date().toISOString(),
           owner: project.owner,
           metadata: project.metadata || {}
         }));
@@ -108,25 +108,37 @@ export default function ProjectsPage() {
 
   const toggleFavourite = async (id: string) => {
     // Find the project to toggle
-    const project = projects.find(p => p.id === id);
+    const project = projects.find((p) => p.id === id);
     if (!project) return;
-
+  
     // Update locally first for immediate UI feedback
     setProjects(
       projects.map((project) =>
         project.id === id
-          ? { ...project, isFavourite: !project.isFavourite }
+          ? { 
+              ...project, 
+              isFavourite: !project.isFavourite,
+              metadata: {
+                ...project.metadata,
+                isFavourite: !project.isFavourite
+              }
+            }
           : project
       )
     );
-
+  
     // Update in database
     const supabase = createClient();
     const { error } = await supabase
       .from("projects")
-      .update({ isFavourite: !project.isFavourite })
+      .update({ 
+        metadata: {
+          ...project.metadata,
+          isFavourite: !project.isFavourite
+        }
+      })
       .eq("id", id);
-
+  
     if (error) {
       console.error("Error updating favourite status:", error);
       // Revert the local change if the server update failed

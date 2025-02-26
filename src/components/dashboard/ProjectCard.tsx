@@ -14,10 +14,9 @@ interface ProjectCardProps {
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, onDelete }) => {
-  // Find the icon component based on the project.icon string
-  const IconComponent = project.icon ? 
-    ICONS.find(icon => icon.id === project.icon)?.icon || 
-    ICONS.find(icon => icon.id === "file-text")?.icon : 
+  // Find the icon component based on the icon stored in metadata
+  const iconId = project.metadata?.icon || project.icon || "file-text";
+  const IconComponent = ICONS.find(icon => icon.id === iconId)?.icon || 
     ICONS.find(icon => icon.id === "file-text")?.icon;
 
   return (
@@ -28,9 +27,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, o
             variant="ghost"
             size="icon"
             onClick={() => onToggleFavourite(project.id)}
-            className={project.isFavourite ? "text-yellow-500" : ""}
+            className={project.isFavourite || project.metadata?.isFavourite ? "text-yellow-500" : ""}
           >
-            <Star className="h-4 w-4" fill={project.isFavourite ? "currentColor" : "none"} />
+            <Star className="h-4 w-4" fill={(project.isFavourite || project.metadata?.isFavourite) ? "currentColor" : "none"} />
           </Button>
           <Button
             variant="ghost"
@@ -58,7 +57,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, o
           <div className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
             <span className="text-xs">
-              {new Date(project.createdAt).toLocaleDateString()}
+              {new Date(project.metadata?.createdAt || project.createdAt).toLocaleDateString()}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
