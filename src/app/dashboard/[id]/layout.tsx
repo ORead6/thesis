@@ -36,7 +36,7 @@ export default function ProjectLayout({
           "bg-primary hover:bg-primary/90 border-2 border-primary-foreground/20",
           "hover:scale-110",
           isRightSidebarOpen
-            ? "right-[340px] md:right-[384px]" // Adjusted position when sidebar is open
+            ? "right-[356px] md:right-[400px]" // Increased spacing when sidebar is open
             : "right-6" // Position when sidebar is closed
         )}
         onClick={toggleSidebar}
