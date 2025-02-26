@@ -36,7 +36,7 @@ export default function ProjectLayout({
           "bg-primary hover:bg-primary/90 border-2 border-primary-foreground/20",
           "hover:scale-110",
           isRightSidebarOpen
-            ? "right-[280px] md:right-72" // Position when sidebar is open
+            ? "right-[340px] md:right-[384px]" // Adjusted position when sidebar is open
             : "right-6" // Position when sidebar is closed
         )}
         onClick={toggleSidebar}
@@ -52,7 +52,7 @@ export default function ProjectLayout({
       <aside className={cn(
         "fixed top-0 right-0 z-20 h-screen border-l bg-background shadow-sm transition-all duration-300 ease-in-out",
         "mt-[57px] md:mt-0", // Account for header height on mobile
-        isRightSidebarOpen ? "translate-x-0 w-64" : "translate-x-full w-64"
+        isRightSidebarOpen ? "translate-x-0 w-80 md:w-96" : "translate-x-full w-80 md:w-96"
       )}>
         <ChatBot onClose={() => setIsRightSidebarOpen(false)} />
       </aside>

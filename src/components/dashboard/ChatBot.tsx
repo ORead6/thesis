@@ -45,7 +45,7 @@ export function ChatBot({ onClose }: ChatBotProps) {
 
   const sendMessage = () => {
     if (!input.trim()) return;
-    
+
     // Add user message
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -53,10 +53,10 @@ export function ChatBot({ onClose }: ChatBotProps) {
       sender: "user",
       timestamp: new Date(),
     };
-    
+
     setMessages([...messages, userMessage]);
     setInput("");
-    
+
     // Simulate bot response
     setTimeout(() => {
       const botMessage: Message = {
@@ -77,10 +77,10 @@ export function ChatBot({ onClose }: ChatBotProps) {
           <p className="text-xs text-muted-foreground">Ask questions about your data</p>
         </div>
         {onClose && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-7 w-7" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
@@ -88,55 +88,55 @@ export function ChatBot({ onClose }: ChatBotProps) {
           </Button>
         )}
       </div>
-      
+
       <ScrollArea className="flex-1 p-3">
         <div className="flex flex-col gap-3">
           {messages.map((message) => (
             <div
               key={message.id}
               className={cn(
-                "flex gap-2 max-w-[90%]", 
+                "flex gap-2 max-w-[90%]",
                 message.sender === "user" ? "ml-auto" : "mr-auto"
               )}
             >
               {message.sender === "bot" && (
                 <Avatar className="h-8 w-8 border bg-primary/10 flex items-center justify-center">
-                <Bot className="h-4 w-4 text-primary" />
-              </Avatar>
+                  <Bot className="h-4 w-4 text-primary" />
+                </Avatar>
               )}
               <div className={cn(
-                "rounded-lg p-3",
-                message.sender === "user" 
-                  ? "bg-primary text-primary-foreground" 
+                "rounded-lg p-3 break-words whitespace-normal", // Add break-words and whitespace-normal
+                message.sender === "user"
+                  ? "bg-primary text-primary-foreground"
                   : "bg-muted"
               )}>
                 <p className="text-sm">{message.content}</p>
                 <p className="text-[10px] opacity-70 mt-1">
-                  {message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
               {message.sender === "user" && (
                 <Avatar className="h-8 w-8 border flex items-center justify-center">
-                <User className="h-4 w-4" />
-              </Avatar>
+                  <User className="h-4 w-4" />
+                </Avatar>
               )}
             </div>
           ))}
         </div>
       </ScrollArea>
-      
+
       <div className="p-3 border-t mt-auto">
-        <form 
+        <form
           onSubmit={(e) => {
             e.preventDefault();
             sendMessage();
-          }} 
+          }}
           className="flex gap-2"
         >
-          <Button 
-            type="button" 
-            size="icon" 
-            variant="ghost" 
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
             className="shrink-0"
           >
             <Paperclip className="h-4 w-4" />
@@ -146,11 +146,11 @@ export function ChatBot({ onClose }: ChatBotProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question..."
-            className="flex-1"
+            className="flex-1 overflow-y-auto whitespace-normal break-words"
           />
-          <Button 
-            type="submit" 
-            size="icon" 
+          <Button
+            type="submit"
+            size="icon"
             className="shrink-0"
           >
             <SendHorizontal className="h-4 w-4" />
