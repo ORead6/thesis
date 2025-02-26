@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ICONS from "@/components/dashboard/availableIcons";
+import { createClient } from "@/utils/supabase/client";
+import { v4 as uuidv4 } from "uuid";
 
 interface NewProjectCardProps {
   isOpen: boolean;
@@ -32,7 +34,7 @@ interface NewProjectCardProps {
 const initialState = {
   title: "",
   description: "",
-  icon: "layout",
+  icon: "activity",
   csvFile: null as File | null,
 };
 
@@ -53,6 +55,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
     if (!isOpen) {
       setProjectData(initialState);
       setStep(1);
+      setIconDropdownOpen(false);
     }
   }, [isOpen]);
 
@@ -90,12 +93,54 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
     onOpenChange(false);
   };
 
+  const handleCreateProject = async () => {
+    // Validate required fields
+    if (!projectData.title || !projectData.csvFile) {
+      console.error("Missing required fields");
+      return;
+    }
+
+    const supabase = createClient();
+    const {data} = await supabase.auth.getUser();
+
+    if (!data) {
+      console.error("User not authenticated");
+      return;
+    }
+
+    const userData = data.user
+
+    const uuid = uuidv4()
+    const supabaseFilePath = `projects/${userData!.id}/${uuid}`;
+
+    const projectDataForDB = {
+      id: uuid,
+      title: projectData.title,
+      description: projectData.description,
+      icon: projectData.icon,
+      dataFilePath: supabaseFilePath,
+      createdAt: new Date().toISOString(),
+      owner: userData!.id,
+      metadata: {} // Empty object for future use
+    };
+
+    const { error } = await supabase.from("projects").insert([projectDataForDB]);
+
+    if (error) {
+      console.error("Error creating project", error);
+      return;
+    }
+
+    handleCreate();
+  };
+
   const handleDialogChange = (open: boolean) => {
     onOpenChange(open);
   };
 
   const canProceed = () => {
     if (step === 1) return projectData.title.trim().length > 0;
+    if (step === 3) return Boolean(projectData.csvFile);
     return true;
   };
 
@@ -229,7 +274,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
                           }}
                         >
                           {icon.icon}
-                      
+
                         </div>
                       ))}
                     </div>
@@ -261,8 +306,36 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
           {/* Step 3: Upload CSV */}
           {step === 3 && (
             <div className="space-y-6 py-4">
-              <Label htmlFor="csv-upload" className="font-medium">Upload project data (CSV)</Label>
-              <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-10 text-center hover:border-primary transition-colors">
+              <Label htmlFor="csv-upload" className="font-medium">
+                Upload project data (CSV) <span className="text-red-500">*</span>
+              </Label>
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-10 text-center transition-colors",
+                  "hover:border-primary",
+                  projectData.csvFile ? "border-primary bg-primary/5" : "border-muted-foreground/30"
+                )}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+
+                  const files = e.dataTransfer.files;
+                  if (files.length > 0) {
+                    const file = files[0];
+                    if (file.type === "text/csv" || file.name.endsWith('.csv')) {
+                      updateData("csvFile", file);
+                    }
+                  }
+                }}
+              >
                 <Input
                   id="csv-upload"
                   type="file"
@@ -270,12 +343,14 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
                   onChange={handleFileChange}
                   className="hidden"
                 />
-                <Label htmlFor="csv-upload" className="cursor-pointer">
+                <Label htmlFor="csv-upload" className="cursor-pointer block w-full h-full">
                   <div className="flex flex-col items-center">
                     <FileUp className="h-10 w-10 text-muted-foreground mb-2" />
-                    <span className="font-medium text-lg">Click to upload</span>
+                    <span className="font-medium text-lg">
+                      {projectData.csvFile ? "File selected" : "Drop CSV here or click to upload"}
+                    </span>
                     <span className="text-sm text-muted-foreground">
-                      {projectData.csvFile ? projectData.csvFile.name : "CSV files only"}
+                      {projectData.csvFile ? projectData.csvFile.name : "CSV files only (required)"}
                     </span>
                   </div>
                 </Label>
@@ -328,7 +403,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleCreate} type="button" className="px-6 py-2">
+              <Button onClick={handleCreateProject} type="button" className="px-6 py-2">
                 Create Project
                 <CheckCircle className="ml-2 h-4 w-4" />
               </Button>
