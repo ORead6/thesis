@@ -1,12 +1,20 @@
 import React from "react";
 import SideNav from "@/components/dashboard/SideNav";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import supabase from "@/lib/supabase/supabase";
+import { redirect } from "next/navigation";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+  
   return (
     <SidebarProvider>
       <div className="flex min-h-screen min-w-[100%]">

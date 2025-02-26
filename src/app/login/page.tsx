@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import supabase from "@/lib/supabase/supabase";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,11 +23,18 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      setIsLoading(false);
+      console.error(error.message);
+    } else {
       setIsLoading(false);
       router.push("/dashboard");
-    }, 1500);
+    }
   };
 
   return (
