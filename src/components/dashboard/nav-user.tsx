@@ -29,7 +29,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import supabase from "@/lib/supabase/supabase"
+import {createClient} from "@/utils/supabase/client"
 import { useRouter } from "next/navigation";
 
 export function NavUser({
@@ -45,9 +45,14 @@ export function NavUser({
   const router = useRouter()
 
   const handleLogout = async () => {
+    const supabase = createClient()
+
+    console.log("Logging out")
+
     const { error } = await supabase.auth.signOut()
+    
     if (error) {
-      console.error
+      console.log(error)
     } else {
       router.push("/login");
     }
@@ -114,8 +119,8 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <LogOut onClick={handleLogout} />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

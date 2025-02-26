@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import supabase from "@/lib/supabase/supabase";
+import { createClient } from "@/utils/supabase/server";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -32,6 +32,7 @@ export default function RegisterPage() {
     }
     
     setIsLoading(true);
+    const supabase = await createClient();
 
     const { data, error } = await supabase.auth.signUp({
       email: email,
