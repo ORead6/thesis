@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronDown, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ArrowLeft, ArrowRight, CheckCircle, FileUp, LayoutGrid, FileText, Settings } from "lucide-react";
@@ -17,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import ICONS from "@/components/dashboard/availableIcons";
 
 interface NewProjectCardProps {
   isOpen: boolean;
@@ -26,14 +29,6 @@ interface NewProjectCardProps {
   onCreateProject: () => void;
 }
 
-const ICONS = [
-  { id: "layout", icon: <LayoutGrid className="h-5 w-5" /> },
-  { id: "file", icon: <FileText className="h-5 w-5" /> },
-  { id: "settings", icon: <Settings className="h-5 w-5" /> },
-  { id: "check", icon: <CheckCircle className="h-5 w-5" /> },
-];
-
-// Initial state for form data
 const initialState = {
   title: "",
   description: "",
@@ -48,61 +43,57 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
   onNewProjectChange,
   onCreateProject,
 }) => {
-  // State for multi-step process
   const [step, setStep] = useState(1);
   const [projectData, setProjectData] = useState(initialState);
-  
-  // Reset state when dialog opens/closes
+  const [iconDropdownOpen, setIconDropdownOpen] = useState(false);
+  const [iconSearchQuery, setIconSearchQuery] = useState("");
+
+  // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      // Reset state completely when dialog closes
       setProjectData(initialState);
       setStep(1);
     }
   }, [isOpen]);
-  
-  // Handle form navigation
+
   const nextStep = () => setStep(step + 1);
   const prevStep = () => setStep(step - 1);
-  
-  // Update form data
+
+  const filteredIcons = iconSearchQuery.trim() === ""
+    ? ICONS
+    : ICONS.filter(icon =>
+      icon.id.toLowerCase().includes(iconSearchQuery.toLowerCase()) ||
+      (icon.label && icon.label.toLowerCase().includes(iconSearchQuery.toLowerCase()))
+    );
+
   const updateData = (field: string, value: any) => {
     setProjectData({
       ...projectData,
       [field]: value,
     });
   };
-  
-  // Handle file upload
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       updateData("csvFile", e.target.files[0]);
     }
   };
-  
-  // Handle creation confirmation
+
   const handleCreate = () => {
-    // Update parent state first 
     newProject.title = projectData.title;
     newProject.description = projectData.description;
-
     onNewProjectChange({
       title: projectData.title,
       description: projectData.description,
     });
-    
     onCreateProject();
-    
-    // Close the dialog - this will also reset the form via the useEffect
     onOpenChange(false);
   };
-  
-  // Handle dialog close
+
   const handleDialogChange = (open: boolean) => {
     onOpenChange(open);
   };
-  
-  // Determine if we can proceed to next step
+
   const canProceed = () => {
     if (step === 1) return projectData.title.trim().length > 0;
     return true;
@@ -111,7 +102,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
-        <Card className="group relative overflow-hidden transition-all hover:shadow-lg border-dashed border-2 border-primary/30 hover:border-primary dark:border-primary/20 dark:hover:border-primary/60 h-[200px] flex flex-col cursor-pointer">
+        <Card className="group relative overflow-hidden transition-all hover:shadow-xl border-dashed border-2 border-primary/30 hover:border-primary dark:border-primary/20 dark:hover:border-primary/60 h-[200px] flex flex-col cursor-pointer">
           <CardContent className="flex flex-col items-center justify-center h-full py-6 text-center">
             <div className="rounded-full bg-primary/10 dark:bg-primary/20 p-4 mb-4 transform group-hover:scale-110 transition-transform">
               <Plus className="h-6 w-6 text-primary dark:text-primary" />
@@ -123,166 +114,221 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
           </CardContent>
         </Card>
       </DialogTrigger>
-      
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Create New Project</DialogTitle>
-          <DialogDescription>
+
+      <DialogContent className="sm:max-w-[500px] p-6 rounded-lg shadow-xl bg-background">
+        <DialogHeader className="mb-4">
+          <DialogTitle className="text-2xl font-bold">Create New Project</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             {step === 1 && "Step 1: Basic information"}
             {step === 2 && "Step 2: Choose a project icon"}
             {step === 3 && "Step 3: Upload project data"}
             {step === 4 && "Step 4: Review and create"}
           </DialogDescription>
         </DialogHeader>
-        
-        {/* Progress indicator */}
-        <div className="w-full mb-4">
-          <div className="flex justify-between mb-1">
+
+        {/* Progress Indicator - Improved visibility */}
+        <div className="w-full mb-6">
+          <div className="flex justify-between mb-2">
             {[1, 2, 3, 4].map((stepNumber) => (
-              <div 
+              <div
                 key={stepNumber}
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                  stepNumber === step 
-                    ? "bg-primary text-primary-foreground" 
-                    : stepNumber < step 
-                    ? "bg-primary/70 text-primary-foreground" 
-                    : "bg-muted text-muted-foreground"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border ${stepNumber === step
+                  ? "bg-primary text-primary-foreground border-primary-foreground"
+                  : stepNumber < step
+                    ? "bg-primary/80 text-primary-foreground border-primary/30"
+                    : "bg-muted text-foreground border-muted-foreground/50"
+                  }`}
               >
                 {stepNumber}
               </div>
             ))}
           </div>
-          <div className="w-full bg-muted h-1 rounded-full">
-            <div 
-              className="bg-primary h-1 rounded-full transition-all" 
+          <div className="w-full bg-muted rounded-full h-2">
+            <div
+              className="bg-primary h-2 rounded-full transition-all"
               style={{ width: `${(step / 4) * 100}%` }}
             />
           </div>
         </div>
-        
-        {/* Step 1: Basic Information */}
-        {step === 1 && (
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="title" className="required">Project Title</Label>
-              <Input
-                id="title"
-                value={projectData.title}
-                onChange={(e) => updateData("title", e.target.value)}
-                placeholder="Enter project title"
-              />
+
+        {/* Fixed height content container */}
+        <div className="min-h-[320px]">
+          {/* Step 1: Basic Information */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="title" className="font-medium">
+                  Project Title <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="title"
+                  value={projectData.title}
+                  onChange={(e) => updateData("title", e.target.value)}
+                  placeholder="Enter project title"
+                  className="shadow-sm focus:ring-primary focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description" className="font-medium">
+                  Description
+                </Label>
+                <Textarea
+                  id="description"
+                  value={projectData.description}
+                  onChange={(e) => updateData("description", e.target.value)}
+                  placeholder="Enter project description (optional)"
+                  rows={4}
+                  className="shadow-sm focus:ring-primary focus:border-primary"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={projectData.description}
-                onChange={(e) => updateData("description", e.target.value)}
-                placeholder="Enter project description (optional)"
-                rows={4}
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Step 2: Choose Icon */}
-        {step === 2 && (
-          <div className="space-y-4 py-4">
-            <Label>Select a project icon</Label>
-            <RadioGroup 
-              value={projectData.icon} 
-              onValueChange={(value) => updateData("icon", value)}
-              className="grid grid-cols-2 gap-4"
-            >
-              {ICONS.map((icon) => (
-                <div key={icon.id} className="flex items-center space-x-2">
-                  <RadioGroupItem value={icon.id} id={`icon-${icon.id}`} className="peer sr-only" />
-                  <Label 
-                    htmlFor={`icon-${icon.id}`}
-                    className="flex items-center justify-center bg-muted border rounded-md p-4 hover:bg-muted/80 cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 w-full h-20"
-                  >
-                    <div className="text-center">
-                      <div className="flex justify-center mb-2">
-                        {icon.icon}
-                      </div>
-                      <span className="text-xs capitalize">{icon.id}</span>
+          )}
+
+          {/* Step 2: Choose Icon */}
+          {step === 2 && (
+            <div className="space-y-6 py-4">
+              <Label className="font-medium">Select a project icon</Label>
+
+              {/* Custom dropdown for icon selection */}
+              <div className="relative">
+                {/* Selected icon display */}
+                <button
+                  type="button"
+                  onClick={() => setIconDropdownOpen(!iconDropdownOpen)}
+                  className="flex items-center justify-between w-full p-4 bg-muted border rounded-lg hover:bg-muted/80 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <div className="flex items-center gap-3">
+                    {ICONS.find(icon => icon.id === projectData.icon)?.icon}
+                    <span className="text-sm capitalize">{projectData.icon}</span>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${iconDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Icon dropdown */}
+                {iconDropdownOpen && (
+                  <div className="absolute z-50 mt-2 w-full max-h-[300px] overflow-y-auto border rounded-lg bg-background shadow-lg">
+                    <div className="sticky top-0 bg-background border-b p-2">
+                      <Input
+                        placeholder="Search icons..."
+                        value={iconSearchQuery}
+                        onChange={(e) => setIconSearchQuery(e.target.value)}
+                        className="w-full"
+                      />
                     </div>
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
-        
-        {/* Step 3: Upload CSV */}
-        {step === 3 && (
-          <div className="space-y-4 py-4">
-            <Label htmlFor="csv-upload">Upload project data (CSV)</Label>
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-              <Input 
-                id="csv-upload"
-                type="file" 
-                accept=".csv" 
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              <Label htmlFor="csv-upload" className="cursor-pointer">
-                <div className="flex flex-col items-center">
-                  <FileUp className="h-10 w-10 text-muted-foreground mb-2" />
-                  <span className="font-medium">Click to upload</span>
-                  <span className="text-sm text-muted-foreground">
-                    {projectData.csvFile ? projectData.csvFile.name : "CSV files only"}
-                  </span>
-                </div>
-              </Label>
-            </div>
-          </div>
-        )}
-        
-        {/* Step 4: Review */}
-        {step === 4 && (
-          <div className="space-y-4 py-2">
-            <h3 className="font-medium text-lg">Review Project Details</h3>
-            <div className="bg-muted rounded-md p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                {ICONS.find(icon => icon.id === projectData.icon)?.icon}
-                <div>
-                  <p className="font-medium">{projectData.title}</p>
-                  <p className="text-sm text-muted-foreground">{projectData.description || "No description provided"}</p>
+                    <div className="grid grid-cols-3 gap-2 p-2">
+                      {filteredIcons.map((icon) => (
+                        <div
+                          key={icon.id}
+                          className={cn(
+                            "flex flex-col items-center p-2 rounded-md cursor-pointer hover:bg-muted transition-colors",
+                            projectData.icon === icon.id && "bg-primary/10 border border-primary"
+                          )}
+                          onClick={() => {
+                            updateData("icon", icon.id);
+                            setIconDropdownOpen(false);
+                          }}
+                        >
+                          {icon.icon}
+                      
+                        </div>
+                      ))}
+                    </div>
+                    {filteredIcons.length === 0 && (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No icons match your search
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected icon preview */}
+              <div className="mt-6">
+                <Label className="text-sm font-medium text-muted-foreground mb-2 block">Preview</Label>
+                <div className="flex items-center gap-4 p-4 bg-muted/50 border rounded-lg">
+                  <div className="h-12 w-12 bg-background rounded-lg flex items-center justify-center">
+                    {ICONS.find(icon => icon.id === projectData.icon)?.icon}
+                  </div>
+                  <div>
+                    <p className="font-medium">{projectData.title || "Project Title"}</p>
+                    <p className="text-xs text-muted-foreground">with {projectData.icon} icon</p>
+                  </div>
                 </div>
               </div>
-              {projectData.csvFile && (
-                <div className="text-sm">
-                  <span className="font-medium">Data file:</span> {projectData.csvFile.name}
-                </div>
-              )}
             </div>
-          </div>
-        )}
-        
-        {/* Navigation buttons */}
-        <DialogFooter className="flex items-center justify-between mt-4">
+          )}
+
+          {/* Step 3: Upload CSV */}
+          {step === 3 && (
+            <div className="space-y-6 py-4">
+              <Label htmlFor="csv-upload" className="font-medium">Upload project data (CSV)</Label>
+              <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-10 text-center hover:border-primary transition-colors">
+                <Input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <Label htmlFor="csv-upload" className="cursor-pointer">
+                  <div className="flex flex-col items-center">
+                    <FileUp className="h-10 w-10 text-muted-foreground mb-2" />
+                    <span className="font-medium text-lg">Click to upload</span>
+                    <span className="text-sm text-muted-foreground">
+                      {projectData.csvFile ? projectData.csvFile.name : "CSV files only"}
+                    </span>
+                  </div>
+                </Label>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Review */}
+          {step === 4 && (
+            <div className="space-y-6 py-4">
+              <h3 className="font-semibold text-xl">Review Project Details</h3>
+              <div className="bg-muted rounded-lg p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  {ICONS.find(icon => icon.id === projectData.icon)?.icon}
+                  <div>
+                    <p className="font-bold text-lg">{projectData.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {projectData.description || "No description provided"}
+                    </p>
+                  </div>
+                </div>
+                {projectData.csvFile && (
+                  <div className="text-sm">
+                    <span className="font-medium">Data file:</span> {projectData.csvFile.name}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation Buttons */}
+        <DialogFooter className="mt-6 flex items-center justify-between">
           <div>
             {step > 1 ? (
-              <Button variant="outline" onClick={prevStep} type="button">
+              <Button variant="outline" onClick={prevStep} type="button" className="px-4 py-2">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
             ) : (
-              <Button variant="outline" onClick={() => handleDialogChange(false)} type="button">
+              <Button variant="outline" onClick={() => handleDialogChange(false)} type="button" className="px-4 py-2">
                 Cancel
               </Button>
             )}
           </div>
           <div>
             {step < 4 ? (
-              <Button onClick={nextStep} disabled={!canProceed()} type="button">
+              <Button onClick={nextStep} disabled={!canProceed()} type="button" className="px-6 py-2">
                 Next
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleCreate} type="button">
+              <Button onClick={handleCreate} type="button" className="px-6 py-2">
                 Create Project
                 <CheckCircle className="ml-2 h-4 w-4" />
               </Button>
