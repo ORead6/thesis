@@ -20,7 +20,7 @@ const s3 = new S3Client({
     },
 });
 
-export async function KPIGenerator(userID: string, projectUUID: string, csvContent: string) {
+export async function KPIGenerator(userID: string, projectUUID: string, csvContent: string, projectContext: string) {
     try {
         // Parse CSV to analyze structure and sample data
         const parser = csv.parse(csvContent, {
@@ -40,7 +40,6 @@ export async function KPIGenerator(userID: string, projectUUID: string, csvConte
             throw new Error("CSV file contains no data");
         }
 
-
         // Extract column names
         const columns = Object.keys(records[0]);
 
@@ -53,33 +52,55 @@ export async function KPIGenerator(userID: string, projectUUID: string, csvConte
 
         // Prepare the prompt for OpenAI
         const prompt = `
-      I have a CSV dataset with the following structure:
-      
-      Columns: ${JSON.stringify(columns)}
-      Number of rows: ${records.length}+
-      
-      Here are some sample rows:
-      ${JSON.stringify(dataSummary.sampleData, null, 2)}
-      
-      Based on this dataset, what are the 4 most valuable KPIs (Key Performance Indicators) that could be derived from this data?
-      
-      For each KPI, provide:
-      1. A clear header/title
-      2. The current value of the KPI based on the data
-      3. A brief explanation of why this KPI is valuable
-      
-      Return your answer as valid JSON following this exact structure:
-      {
-        "kpis": [
-          {
-            "header": "KPI Title",
-            "value": "KPI Value (can be a number, percentage, or meaningful text but do not give it a caption, literally just provide the value itself)",
-            "explanation": "Brief explanation of the KPI's importance no more than 5-10 words"
-          },
-          ...3 more KPIs
-        ]
-      }
-    `;
+  You are given:
+  1. A CSV dataset.
+  2. The columns of the CSV: ${JSON.stringify(columns)}
+  3. The number of rows in the CSV: ${records.length}+
+  4. The raw CSV data: ${JSON.stringify(records, null, 2)}
+  5. Additional context that may help interpret or calculate KPIs:
+     ${projectContext}
+
+  Your task:
+  - Analyze the CSV dataset.
+  - Derive 4 realistic and valuable Key Performance Indicators (KPIs) directly from the data.
+  - Each KPI must accurately reflect actual calculations based on the provided data.
+  - If the data does not contain enough information to compute a certain KPI precisely, state your assumption clearly but still provide the best estimate or pivot to a relevant KPI that can be computed.
+  - Provide a brief explanation (5–10 words) about why each KPI is important.
+
+  Output format requirements:
+  - Return your answer as valid JSON only, following this exact structure:
+    {
+      "kpis": [
+        {
+          "header": "KPI Title",
+          "value": "KPI Value (e.g. number, percentage, or short text without captions)",
+          "explanation": "Brief explanation (5-10 words max)"
+        },
+        {
+          "header": "KPI Title",
+          "value": "...",
+          "explanation": "..."
+        },
+        {
+          "header": "KPI Title",
+          "value": "...",
+          "explanation": "..."
+        },
+        {
+          "header": "KPI Title",
+          "value": "...",
+          "explanation": "..."
+        }
+      ]
+    }
+  
+  Important guidelines:
+  - Do not include any text outside the JSON.
+  - Do not add extra fields; keep the JSON structure exact.
+  - "value" must be derived from the data or estimated based on any assumptions. Provide numeric or short-text values only (no words like 'Value:' or 'Total:' before the number).
+  - "explanation" should be concise, describing why the KPI is useful or actionable (5–10 words).
+  - Avoid lengthy justifications or disclaimers. Stick to the specified output format.
+`;
 
 
         // Call OpenAI API
@@ -89,6 +110,7 @@ export async function KPIGenerator(userID: string, projectUUID: string, csvConte
             temperature: 0.5,
             response_format: { type: "json_object" }
         });
+
 
         // Extract the JSON response from OpenAI
         const responseContent = completion.choices[0].message.content;

@@ -30,7 +30,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import {createClient} from "@/utils/supabase/client"
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation"
 
 export function NavUser({
   user,
@@ -42,7 +42,6 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
-  const router = useRouter()
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -54,7 +53,7 @@ export function NavUser({
     if (error) {
       console.log(error)
     } else {
-      router.push("/login");
+      redirect("/login");
     }
   }
 

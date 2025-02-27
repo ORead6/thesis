@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Star, Trash2, Clock, Users } from "lucide-react";
 import type { Project } from "@/types/project";
 import ICONS from "@/components/dashboard/availableIcons";
+import { useRouter } from "next/navigation";
 
 interface ProjectCardProps {
   project: Project;
@@ -14,19 +15,37 @@ interface ProjectCardProps {
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, onDelete }) => {
+  const router = useRouter();
+
   // Find the icon component based on the icon stored in metadata
   const iconId = project.metadata?.icon || project.icon || "file-text";
-  const IconComponent = ICONS.find(icon => icon.id === iconId)?.icon || 
+  const IconComponent = ICONS.find(icon => icon.id === iconId)?.icon ||
     ICONS.find(icon => icon.id === "file-text")?.icon;
 
+  // Handle card click
+  const handleCardClick = () => {
+    router.push(`/dashboard/${project.id}`);
+  };
+
+  // Handle button clicks with stopPropagation
+  const handleToggleFavorite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleFavourite(project.id);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(project.id);
+  };
+
   return (
-    <Card className="group relative overflow-hidden transition-all hover:shadow-lg border-l-4 hover:border-l-primary dark:border-l-accent dark:hover:border-l-primary h-[200px] flex flex-col">
+    <Card onClick={handleCardClick} className="group relative overflow-hidden transition-all hover:shadow-lg border-l-4 hover:border-l-primary dark:border-l-accent dark:hover:border-l-primary h-[200px] flex flex-col">
       <CardHeader className="relative pb-2">
         <div className="absolute right-4 top-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onToggleFavourite(project.id)}
+            onClick={handleToggleFavorite}
             className={project.isFavourite || project.metadata?.isFavourite ? "text-yellow-500" : ""}
           >
             <Star className="h-4 w-4" fill={(project.isFavourite || project.metadata?.isFavourite) ? "currentColor" : "none"} />
@@ -34,7 +53,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, o
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onDelete(project.id)}
+            onClick={handleDelete}
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-4 w-4" />

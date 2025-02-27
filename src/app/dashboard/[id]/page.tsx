@@ -1,22 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { 
-  BarChart3, 
-  PieChart, 
-  LineChart, 
-  Users, 
-  Clock, 
-  Calendar, 
-  ArrowLeft, 
-  Download, 
-  Share2, 
+import {
+  BarChart3,
+  PieChart,
+  LineChart,
+  Users,
+  Clock,
+  Calendar,
+  ArrowLeft,
+  Download,
+  Share2,
   Star,
   Activity,
   Timer,
   Medal,
-  TrendingUp 
+  TrendingUp
 } from "lucide-react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +35,8 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
+import { getKPIData } from "../actions";
+import { Loader2 } from "lucide-react";
 
 // Register ChartJS components
 ChartJS.register(
@@ -52,6 +54,13 @@ ChartJS.register(
 export default function ProjectPage() {
   const { id } = useParams();
   const [isFavorite, setIsFavorite] = useState(false);
+  const [kpis, setKpis] = useState([
+    { header: "Total Matches", value: "128", explanation: "+12 since last month" },
+    { header: "Average Goals", value: "2.7", explanation: "-0.3 from last season" },
+    { header: "Top Scorer", value: "17 goals", explanation: "Kane (Manchester United)" },
+    { header: "Pass Accuracy", value: "86.2%", explanation: "+1.4% improvement" },
+  ]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Mock sports data dashboard project
   const project = {
@@ -212,6 +221,31 @@ export default function ProjectPage() {
     ],
   };
 
+  useEffect(() => {
+    async function fetchKPIData() {
+      if (!id) return;
+
+      setIsLoading(true);
+      try {
+        const response = await getKPIData(id as string);
+        if (response.success && response.success.kpis) {
+          setKpis(response.success.kpis);
+        } else {
+          console.error("Failed to load KPI data:", response.error);
+        }
+      } catch (error) {
+        console.error("Error loading KPI data:", error);
+      } finally {
+        // Artificially delay the loading state to show the loading animation
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1000);
+      }
+    }
+
+    fetchKPIData();
+  }, [id]);
+
   // Chart options
   const barOptions = {
     responsive: true,
@@ -265,263 +299,242 @@ export default function ProjectPage() {
   };
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* Back link and project header */}
-      <div className="flex flex-col space-y-4">
-        <Link 
-          href="/dashboard" 
-          className="flex items-center text-sm text-muted-foreground hover:text-primary w-fit"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to dashboards
-        </Link>
-        
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{project.title}</h1>
-            <p className="text-muted-foreground mt-1">{project.description}</p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setIsFavorite(!isFavorite)}
-              className="border-border"
-            >
-              <Star className={`mr-2 h-4 w-4 ${isFavorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
-              {isFavorite ? "Favorited" : "Favorite"}
-            </Button>
-            <Button variant="outline" size="sm">
-              <Share2 className="mr-2 h-4 w-4" />
-              Share
-            </Button>
-            <Button variant="default" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
+    <>
+      {/* Full-page loading overlay with blur effect */}
+      {isLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+            <div className="text-xl font-medium">Loading dashboard data...</div>
+            <div className="text-sm text-muted-foreground">Fetching analytics from S3 and database</div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-6">
-          <div className="flex items-center text-sm text-muted-foreground">
-            <Calendar className="mr-2 h-4 w-4" />
-            Last updated: {project.createdAt}
-          </div>
-          <div className="flex items-center text-sm text-muted-foreground">
-            <Users className="mr-2 h-4 w-4" />
-            {project.members} team analysts
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Dashboard tabs */}
-      <Tabs defaultValue="dashboard" className="space-y-4">
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="players">Players</TabsTrigger>
-            <TabsTrigger value="teams">Teams</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-          
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-muted-foreground flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              Live updates
+      <div className="space-y-8 pb-10">
+        {/* Back link and project header */}
+        <div className="flex flex-col space-y-4">
+          <Link
+            href="/dashboard"
+            className="flex items-center text-sm text-muted-foreground hover:text-primary w-fit"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to dashboards
+          </Link>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{project.title}</h1>
+              <p className="text-muted-foreground mt-1">{project.description}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFavorite(!isFavorite)}
+                className="border-border"
+              >
+                <Star className={`mr-2 h-4 w-4 ${isFavorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                {isFavorite ? "Favorited" : "Favorite"}
+              </Button>
+              <Button variant="outline" size="sm">
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </Button>
+              <Button variant="default" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Calendar className="mr-2 h-4 w-4" />
+              Last updated: {project.createdAt}
+            </div>
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Users className="mr-2 h-4 w-4" />
+              {project.members} team analysts
             </div>
           </div>
         </div>
-        
-        <TabsContent value="dashboard" className="space-y-6">
-          {/* Key Performance Indicators */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Total Matches</CardDescription>
-                <CardTitle className="text-2xl">128</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  +12 since last month
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Average Goals</CardDescription>
-                <CardTitle className="text-2xl">2.7</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  -0.3 from last season
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Top Scorer</CardDescription>
-                <CardTitle className="text-2xl">17 goals</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  Kane (Manchester United)
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Pass Accuracy</CardDescription>
-                <CardTitle className="text-2xl">86.2%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  +1.4% improvement
-                </div>
-              </CardContent>
-            </Card>
+
+        {/* Dashboard tabs */}
+        <Tabs defaultValue="dashboard" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="players">Players</TabsTrigger>
+              <TabsTrigger value="teams">Teams</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                Live updates
+              </div>
+            </div>
           </div>
-          
-          {/* Charts section */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {project.charts.map(chart => (
-              <Card key={chart.id} className="overflow-hidden">
-                <CardHeader className="pb-2 flex flex-row items-start gap-4">
-                  <div className="rounded-xl bg-primary/10 dark:bg-primary/20 p-3 mt-1 shadow-sm">
-                    {getChartIcon(chart.type)}
-                  </div>
-                  <div>
-                    <CardTitle>{chart.title}</CardTitle>
-                    <CardDescription className="mt-1.5">{chart.description}</CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="h-[300px] p-4">
-                    {renderChart(chart.id)}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="players" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Player Performance</CardTitle>
-              <CardDescription>
-                Individual player metrics and performance analysis
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
+
+          <TabsContent value="dashboard" className="space-y-6">
+            {/* Key Performance Indicators */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {kpis.map((kpi, index) => (
+                <Card key={index}>
                   <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <Activity className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-lg">Top Performers</CardTitle>
-                    </div>
+                    <CardDescription>{kpi.header}</CardDescription>
+                    <CardTitle className="text-2xl">{kpi.value}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[250px]">
-                      <Bar data={playerRankingsData} options={barOptions} />
+                    <div className="text-sm text-muted-foreground">
+                      {kpi.explanation}
                     </div>
                   </CardContent>
                 </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <Medal className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-lg">Goal Scorers</CardTitle>
+              ))}
+            </div>
+
+            {/* Charts section */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {project.charts.map(chart => (
+                <Card key={chart.id} className="overflow-hidden">
+                  <CardHeader className="pb-2 flex flex-row items-start gap-4">
+                    <div className="rounded-xl bg-primary/10 dark:bg-primary/20 p-3 mt-1 shadow-sm">
+                      {getChartIcon(chart.type)}
+                    </div>
+                    <div>
+                      <CardTitle>{chart.title}</CardTitle>
+                      <CardDescription className="mt-1.5">{chart.description}</CardDescription>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="h-[250px]">
-                      <Pie data={goalScorersData} options={pieOptions} />
+                  <CardContent className="p-0">
+                    <div className="h-[300px] p-4">
+                      {renderChart(chart.id)}
                     </div>
                   </CardContent>
                 </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <Timer className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-lg">Playing Time</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[250px]">
-                      <Bar data={minutesPlayedData} options={barOptions} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="teams" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Analysis</CardTitle>
-              <CardDescription>
-                Comparative analysis of team performance and tactics
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-lg">League Table</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[400px]">
-                      <Bar data={leagueTableData} options={barOptions} />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-primary" />
-                      <CardTitle className="text-lg">Team Comparison</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[400px]">
-                      <Bar data={teamComparisonData} options={barOptions} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Dashboard Settings</CardTitle>
-              <CardDescription>
-                Configure visualization preferences and data sources
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px] flex items-center justify-center bg-muted/30 dark:bg-accent/40 rounded-md">
-                <p className="text-muted-foreground">Settings options would appear here</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="players" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Player Performance</CardTitle>
+                <CardDescription>
+                  Individual player metrics and performance analysis
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-lg">Top Performers</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[250px]">
+                        <Bar data={playerRankingsData} options={barOptions} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <Medal className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-lg">Goal Scorers</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[250px]">
+                        <Pie data={goalScorersData} options={pieOptions} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-lg">Playing Time</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[250px]">
+                        <Bar data={minutesPlayedData} options={barOptions} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="teams" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Team Analysis</CardTitle>
+                <CardDescription>
+                  Comparative analysis of team performance and tactics
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-lg">League Table</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[400px]">
+                        <Bar data={leagueTableData} options={barOptions} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-lg">Team Comparison</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[400px]">
+                        <Bar data={teamComparisonData} options={barOptions} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Dashboard Settings</CardTitle>
+                <CardDescription>
+                  Configure visualization preferences and data sources
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[400px] flex items-center justify-center bg-muted/30 dark:bg-accent/40 rounded-md">
+                  <p className="text-muted-foreground">Settings options would appear here</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </>
   );
 }

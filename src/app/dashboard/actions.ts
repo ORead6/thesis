@@ -3,8 +3,7 @@
 import {
   S3Client,
   PutObjectCommand,
-  ListObjectsV2Command,
-  DeleteObjectsCommand,
+  GetObjectCommand
 } from "@aws-sdk/client-s3";
 
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -38,4 +37,41 @@ export async function getSignedURL(projectUUID: string) {
   const signedURL = await getSignedUrl(s3, putObjctCommand, { expiresIn: 60 });
 
   return { success: { url: signedURL } };
+}
+export async function getKPIData(projectUUID: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error || !data?.user) {
+    console.log("Unauthorized")
+    return { error: "Unauthorized" }
+  }
+
+  const userID = data.user.id
+
+  // Create a GetObject command to fetch the KPI data
+  const getObjectCommand = new GetObjectCommand({
+    Bucket: process.env.AWS_BUCKET_NAME!,
+    Key: `projects/${userID}/${projectUUID}/kpi-data.json`,
+  });
+
+  try {
+    // Get the object from S3
+    const response = await s3.send(getObjectCommand);
+    
+    // Convert the readable stream to text
+    const bodyContents = await response.Body?.transformToString();
+    
+    if (!bodyContents) {
+      return { error: "No KPI data found" }
+    }
+    
+    // Parse the JSON content
+    const kpiData = JSON.parse(bodyContents);
+    
+    return { success: kpiData };
+  } catch (err) {
+    console.error("Error fetching KPI data:", err);
+    return { error: "Failed to fetch KPI data" };
+  }
 }
