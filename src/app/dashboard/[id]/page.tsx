@@ -35,7 +35,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
-import { getKPIData } from "../actions";
+import { getCurrentProject, getKPIData } from "../actions";
 import { Loader2 } from "lucide-react";
 
 // Register ChartJS components
@@ -62,12 +62,57 @@ export default function ProjectPage() {
   ]);
   const [isLoading, setIsLoading] = useState(true);
 
+  useEffect(() => {
+    async function gettingCurrentProject() {
+      if (!id) return;
+
+      try {
+        // Get project data from Supabase using the server action
+        const response = await getCurrentProject(id as string);
+
+        if (response.error) {
+          console.error("Error fetching project:", response.error);
+          return;
+        }
+
+        if (response.project) {
+          setIsFavorite(response.project.metadata?.isFavourite || false);
+
+          // Create a merged object with default values and actual data
+          setProject({
+            id: response.project.id,
+            title: response.project.title,
+            description: response.project.description || "No description available",
+            createdAt: response.project.metadata?.createdAt
+              ? new Date(response.project.metadata.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+              : new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              }),
+            members: 3, // You might want to fetch this data or keep it static
+            charts: project.charts // Keep your mock chart definitions
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch project data:", error);
+      }
+    }
+
+    gettingCurrentProject();
+  }, [id]);
+
+
   // Mock sports data dashboard project
-  const project = {
+  const [project, setProject] = useState({
     id,
-    title: "Premier League Analytics",
-    description: "Performance analytics for the current Premier League season",
-    createdAt: "2023-10-25",
+    title: "",
+    description: "",
+    createdAt: "",
     members: 3,
     charts: [
       {
@@ -89,7 +134,7 @@ export default function ProjectPage() {
         description: "Breakdown of goals by time period and play type"
       }
     ]
-  };
+  });
 
   // Mock data for Team Performance bar chart
   const teamPerformanceData = {

@@ -75,3 +75,26 @@ export async function getKPIData(projectUUID: string) {
     return { error: "Failed to fetch KPI data" };
   }
 }
+
+export async function getCurrentProject(projectId: string) {
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !userData?.user) {
+    return { error: "Unauthorized" };
+  }
+  
+  // Get the project data
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", projectId)
+    .eq("owner", userData.user.id)
+    .single();
+    
+  if (error) {
+    return { error: error.message };
+  }
+  
+  return { project };
+}
