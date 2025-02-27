@@ -22,6 +22,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ICONS from "@/components/dashboard/availableIcons";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
+import { getSignedURL } from "@/app/dashboard/actions";
 
 interface NewProjectCardProps {
   isOpen: boolean;
@@ -132,6 +133,22 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
       console.error("Error creating project", error);
       return;
     }
+
+    const uploadURLResult = await getSignedURL(uuid);
+
+    if (!uploadURLResult?.success) {
+      console.log("URL NOT CREATED SUCCESSFULLY")
+      return;
+    }
+
+    const uploadURL = uploadURLResult.success.url;
+
+    await fetch(uploadURL, {
+      method: "PUT",
+      body: projectData.csvFile
+    });
+
+    console.log("Upload Successful")
 
     handleCreate();
   };
