@@ -4,6 +4,8 @@ import { ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+import { useRef } from "react";
 import { Plus, ArrowLeft, ArrowRight, CheckCircle, FileUp, LayoutGrid, FileText, Settings } from "lucide-react";
 import {
   Dialog,
@@ -23,6 +25,7 @@ import ICONS from "@/components/dashboard/availableIcons";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { getSignedURL } from "@/app/dashboard/actions";
+import { KPIGenerator } from "@/utils/openai/actions";
 
 interface NewProjectCardProps {
   isOpen: boolean;
@@ -50,6 +53,11 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
   const [projectData, setProjectData] = useState(initialState);
   const [iconDropdownOpen, setIconDropdownOpen] = useState(false);
   const [iconSearchQuery, setIconSearchQuery] = useState("");
+
+  const [isCreating, setIsCreating] = useState(false);
+  const [creationStatus, setCreationStatus] = useState("");
+  const [creationSuccess, setCreationSuccess] = useState(false);
+  const createOperationRef = useRef<{ inProgress: boolean }>({ inProgress: false });
 
   // Reset form when modal closes
   useEffect(() => {
@@ -84,6 +92,7 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
   };
 
   const handleCreate = () => {
+    // Update parent component data
     newProject.title = projectData.title;
     newProject.description = projectData.description;
     onNewProjectChange({
@@ -91,6 +100,15 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
       description: projectData.description,
     });
     onCreateProject();
+
+    // Reset all progress states
+    setCreationSuccess(false);
+    setCreationStatus("");
+    setIsCreating(false);
+    setProjectData(initialState);
+    setStep(1);
+
+    // Close the dialog
     onOpenChange(false);
   };
 
@@ -101,59 +119,120 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
       return;
     }
 
-    const supabase = createClient();
-    const { data } = await supabase.auth.getUser();
+    // Set creating state and reference
+    setIsCreating(true);
+    createOperationRef.current.inProgress = true;
+    setCreationStatus("Preparing your project...");
 
-    if (!data) {
-      console.error("User not authenticated");
-      return;
-    }
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getUser();
 
-    const userData = data.user
-
-    const uuid = uuidv4()
-    const supabaseFilePath = `projects/${userData!.id}/${uuid}`;
-
-    const projectDataForDB = {
-      id: uuid,
-      title: projectData.title,
-      description: projectData.description,
-      owner: userData!.id,
-      metadata: {
-        isFavourite: false,
-        icon: projectData.icon,
-        dataFilePath: supabaseFilePath,
-        createdAt: new Date().toISOString(),
+      if (!data) {
+        console.error("User not authenticated");
+        setCreationStatus("Authentication error. Please try again.");
+        setIsCreating(false);
+        return;
       }
-    };
 
-    const { error } = await supabase.from("projects").insert([projectDataForDB]);
+      const userData = data.user;
 
-    if (error) {
-      console.error("Error creating project", error);
-      return;
+      setCreationStatus("Creating project database entry...");
+      const uuid = uuidv4();
+      const supabaseFilePath = `projects/${userData!.id}/${uuid}`;
+
+      const projectDataForDB = {
+        id: uuid,
+        title: projectData.title,
+        description: projectData.description,
+        owner: userData!.id,
+        metadata: {
+          isFavourite: false,
+          icon: projectData.icon,
+          dataFilePath: supabaseFilePath,
+          createdAt: new Date().toISOString(),
+        }
+      };
+
+      const { error } = await supabase.from("projects").insert([projectDataForDB]);
+
+      if (error) {
+        console.error("Error creating project", error);
+        setCreationStatus("Error creating project. Please try again.");
+        setIsCreating(false);
+        return;
+      }
+
+      setCreationStatus("Uploading data file...");
+      const uploadURLResult = await getSignedURL(uuid);
+
+      if (!uploadURLResult?.success) {
+        console.log("URL NOT CREATED SUCCESSFULLY");
+        setCreationStatus("Error preparing upload. Please try again.");
+        setIsCreating(false);
+        return;
+      }
+
+      const uploadURL = uploadURLResult.success.url;
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        // Remove any headers that might interfere with the signature
+        body: projectData.csvFile
+      });
+
+      setCreationStatus("Upload successful! Finalizing your project...");
+
+      // Where we do OPEN AI STUFFS
+      setCreationStatus("Generating KPIs");
+
+      const csvContent = await projectData.csvFile.text();
+
+      const result = await KPIGenerator(userData!.id, uuid, csvContent);
+
+      // Show success state for 1.5 seconds before closing
+      setCreationSuccess(true);
+      setTimeout(() => {
+        if (createOperationRef.current.inProgress) {
+          setIsCreating(false);
+          setCreationStatus("");
+          createOperationRef.current.inProgress = false;
+          handleCreate(); // This will reset everything and close the dialog
+        }
+      }, 1500);
+
+    } catch (error) {
+      console.error("Error in project creation:", error);
+      setCreationStatus("An unexpected error occurred. Please try again.");
+      setIsCreating(false);
+      createOperationRef.current.inProgress = false;
     }
-
-    const uploadURLResult = await getSignedURL(uuid);
-
-    if (!uploadURLResult?.success) {
-      console.log("URL NOT CREATED SUCCESSFULLY")
-      return;
-    }
-
-    const uploadURL = uploadURLResult.success.url;
-
-    await fetch(uploadURL, {
-      method: "PUT",
-      body: projectData.csvFile
-    });
-
-    console.log("Upload Successful")
-
-    handleCreate();
   };
 
+  useEffect(() => {
+    return () => {
+      createOperationRef.current.inProgress = false;
+    };
+  }, []);
+
   const handleDialogChange = (open: boolean) => {
+    // If creation is in progress, prevent the modal from closing
+    if (isCreating && !open) {
+      // Just show a message that creation will continue in background
+      setCreationStatus("Creating project in background...");
+      return;
+    }
+
+    // If dialog is being closed, reset all progress states
+    if (!open) {
+      setCreationSuccess(false);
+      setCreationStatus("");
+      setIsCreating(false);
+      setProjectData(initialState);
+      setStep(1);
+    }
+
+    // Otherwise close/open normally
     onOpenChange(open);
   };
 
@@ -380,23 +459,45 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
           {/* Step 4: Review */}
           {step === 4 && (
             <div className="space-y-6 py-4">
-              <h3 className="font-semibold text-xl">Review Project Details</h3>
-              <div className="bg-muted rounded-lg p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  {ICONS.find(icon => icon.id === projectData.icon)?.icon}
-                  <div>
-                    <p className="font-bold text-lg">{projectData.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {projectData.description || "No description provided"}
-                    </p>
-                  </div>
+              {isCreating ? (
+                <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                  {creationSuccess ? (
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-3">
+                        <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+                      </div>
+                      <h3 className="font-semibold text-xl">Project Created Successfully!</h3>
+                      <p className="text-muted-foreground">Redirecting to your new project...</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <h3 className="font-semibold text-xl">Creating Your Project</h3>
+                      <p className="text-muted-foreground">{creationStatus}</p>
+                    </div>
+                  )}
                 </div>
-                {projectData.csvFile && (
-                  <div className="text-sm">
-                    <span className="font-medium">Data file:</span> {projectData.csvFile.name}
+              ) : (
+                <>
+                  <h3 className="font-semibold text-xl">Review Project Details</h3>
+                  <div className="bg-muted rounded-lg p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      {ICONS.find(icon => icon.id === projectData.icon)?.icon}
+                      <div>
+                        <p className="font-bold text-lg">{projectData.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {projectData.description || "No description provided"}
+                        </p>
+                      </div>
+                    </div>
+                    {projectData.csvFile && (
+                      <div className="text-sm">
+                        <span className="font-medium">Data file:</span> {projectData.csvFile.name}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -405,26 +506,57 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
         <DialogFooter className="mt-6 flex items-center justify-between">
           <div>
             {step > 1 ? (
-              <Button variant="outline" onClick={prevStep} type="button" className="px-4 py-2">
+              <Button
+                variant="outline"
+                onClick={prevStep}
+                type="button"
+                className="px-4 py-2"
+                disabled={isCreating}
+              >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
             ) : (
-              <Button variant="outline" onClick={() => handleDialogChange(false)} type="button" className="px-4 py-2">
+              <Button
+                variant="outline"
+                onClick={() => handleDialogChange(false)}
+                type="button"
+                className="px-4 py-2"
+                disabled={isCreating && !creationSuccess}
+              >
                 Cancel
               </Button>
             )}
           </div>
           <div>
             {step < 4 ? (
-              <Button onClick={nextStep} disabled={!canProceed()} type="button" className="px-6 py-2">
+              <Button
+                onClick={nextStep}
+                disabled={!canProceed()}
+                type="button"
+                className="px-6 py-2"
+              >
                 Next
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleCreateProject} type="button" className="px-6 py-2">
-                Create Project
-                <CheckCircle className="ml-2 h-4 w-4" />
+              <Button
+                onClick={handleCreateProject}
+                disabled={isCreating}
+                type="button"
+                className="px-6 py-2"
+              >
+                {isCreating ? (
+                  <>
+                    Creating
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Create Project
+                    <CheckCircle className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             )}
           </div>
