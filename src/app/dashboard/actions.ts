@@ -3,7 +3,8 @@
 import {
   S3Client,
   PutObjectCommand,
-  GetObjectCommand
+  GetObjectCommand,
+  DeleteObjectCommand
 } from "@aws-sdk/client-s3";
 
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -97,4 +98,32 @@ export async function getCurrentProject(projectId: string) {
   }
   
   return { project };
+}
+
+export async function deleteProjectFiles(userId: string, projectId: string) {
+  // Could loop through a constant in a seperate file that has all the file names
+  // That we need to delete or simply figure out how to delete that specific folder
+
+  try {
+    // Delete the main CSV file
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME!,
+        Key: `projects/${userId}/${projectId}/csvData.csv`,
+      })
+    );
+
+    // Delete the KPI data file
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME!,
+        Key: `projects/${userId}/${projectId}/kpi-data.json`,
+      })
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting project files:", error);
+    return { success: false, error: (error as Error).message };
+  }
 }

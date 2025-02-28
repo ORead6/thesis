@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Users2,
@@ -143,7 +144,22 @@ const SideNav: React.FC<SideNavProps> = ({ className }) => {
       >
         <div className="flex flex-col h-full py-6 px-3 overflow-y-auto">
           <div className="px-3 py-2 mb-6 hidden md:block">
-            <h2 className="text-lg font-semibold">Navigation</h2>
+            {/* Company Logo and Name */}
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <div className="h-8 w-8 bg-primary/10 rounded-md flex items-center justify-center overflow-hidden">
+                {/* Placeholder logo */}
+                <div className="text-primary text-xs font-bold">LOGO</div>
+                {/* Uncomment this when you have a real logo */}
+                {/* <Image 
+                  src="/path-to-your-logo.png" 
+                  alt="Company Logo" 
+                  width={32} 
+                  height={32}
+                  className="object-contain"
+                /> */}
+              </div>
+              <h2 className="text-lg font-bold">Sportics</h2>
+            </Link>
           </div>
           <div className="flex-1 space-y-1">
             {navItems.map((item) => {

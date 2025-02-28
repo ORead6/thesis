@@ -7,6 +7,7 @@ import NewProjectCard from "@/components/dashboard/NewProjectCard";
 import { Inbox } from "lucide-react";
 import type { Project } from "@/types/project";
 import { createClient } from "@/utils/supabase/client";
+import { deleteProjectFiles } from "./actions";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -20,10 +21,10 @@ export default function ProjectsPage() {
     async function fetchUserProjects() {
       setLoading(true);
       const supabase = createClient();
-      
+
       // Get current user
       const { data: userData } = await supabase.auth.getUser();
-      
+
       if (!userData?.user) {
         console.error("User not authenticated");
         setLoading(false);
@@ -51,10 +52,10 @@ export default function ProjectsPage() {
           owner: project.owner,
           metadata: project.metadata || {}
         }));
-        
+
         setProjects(formattedProjects);
       }
-      
+
       setLoading(false);
     }
 
@@ -76,7 +77,7 @@ export default function ProjectsPage() {
   const refreshProjects = async () => {
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
-    
+
     if (!userData?.user) {
       console.error("User not authenticated");
       return;
@@ -101,7 +102,7 @@ export default function ProjectsPage() {
         owner: project.owner,
         metadata: project.metadata || {}
       }));
-      
+
       setProjects(formattedProjects);
     }
   };
@@ -110,35 +111,35 @@ export default function ProjectsPage() {
     // Find the project to toggle
     const project = projects.find((p) => p.id === id);
     if (!project) return;
-  
+
     // Update locally first for immediate UI feedback
     setProjects(
       projects.map((project) =>
         project.id === id
-          ? { 
-              ...project, 
-              isFavourite: !project.isFavourite,
-              metadata: {
-                ...project.metadata,
-                isFavourite: !project.isFavourite
-              }
+          ? {
+            ...project,
+            isFavourite: !project.isFavourite,
+            metadata: {
+              ...project.metadata,
+              isFavourite: !project.isFavourite
             }
+          }
           : project
       )
     );
-  
+
     // Update in database
     const supabase = createClient();
     const { error } = await supabase
       .from("projects")
-      .update({ 
+      .update({
         metadata: {
           ...project.metadata,
           isFavourite: !project.isFavourite
         }
       })
       .eq("id", id);
-  
+
     if (error) {
       console.error("Error updating favourite status:", error);
       // Revert the local change if the server update failed
@@ -150,17 +151,35 @@ export default function ProjectsPage() {
     // Update locally first for immediate UI feedback
     setProjects(projects.filter((project) => project.id !== id));
 
+    // Get the project to be deleted
+    const project = projects.find((p) => p.id === id);
+
     // Delete from database
     const supabase = createClient();
-    const { error } = await supabase
-      .from("projects")
-      .delete()
-      .eq("id", id);
+    const { data: userData } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error("Error deleting project:", error);
-      // Revert the local change if the server delete failed
-      refreshProjects();
+    // // Delete the database entry
+    // const { error } = await supabase
+    //   .from("projects")
+    //   .delete()
+    //   .eq("id", id);
+
+    // if (error) {
+    //   console.error("Error deleting project:", error);
+    //   // Revert the local change if the server delete failed
+    //   refreshProjects();
+    //   return;
+    // }
+
+    // Delete the associated files in S3
+    if (userData?.user) {
+      const deleteResult = await deleteProjectFiles(userData.user.id, id);
+
+      if (!deleteResult.success) {
+        console.error("Error deleting project files:", deleteResult.error);
+        // The database entry is already deleted, so we don't need to revert
+        // but we might want to log this error or notify the user
+      }
     }
   };
 
@@ -197,7 +216,7 @@ export default function ProjectsPage() {
                 onCreateProject={handleCreateProject}
               />
             )}
-            
+
             {/* Project Cards */}
             {filteredProjects.map((project) => (
               <ProjectCard

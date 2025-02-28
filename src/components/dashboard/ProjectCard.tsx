@@ -16,6 +16,7 @@ interface ProjectCardProps {
 
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, onDelete }) => {
   const router = useRouter();
+  const isFavorite = project.isFavourite || project.metadata?.isFavourite;
 
   // Find the icon component based on the icon stored in metadata
   const iconId = project.metadata?.icon || project.icon || "file-text";
@@ -46,9 +47,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, o
             variant="ghost"
             size="icon"
             onClick={handleToggleFavorite}
-            className={project.isFavourite || project.metadata?.isFavourite ? "text-yellow-500" : ""}
+            className={isFavorite ? "text-yellow-500" : ""}
           >
-            <Star className="h-4 w-4" fill={(project.isFavourite || project.metadata?.isFavourite) ? "currentColor" : "none"} />
+            <Star className="h-4 w-4" fill={isFavorite ? "currentColor" : "none"} />
           </Button>
           <Button
             variant="ghost"
@@ -63,8 +64,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onToggleFavourite, o
           <div className="h-10 w-10 rounded-md flex items-center justify-center bg-primary/10 text-primary dark:bg-primary/20">
             {IconComponent}
           </div>
-          <div>
-            <CardTitle className="text-lg">{project.title}</CardTitle>
+          <div className="flex-grow">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">{project.title}</CardTitle>
+              {isFavorite && (
+                <Star className="h-4 w-4 text-yellow-500" fill="currentColor" />
+              )}
+            </div>
             <CardDescription className="line-clamp-1 text-xs mt-0.5">
               {project.description}
             </CardDescription>
