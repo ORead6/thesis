@@ -8,147 +8,196 @@ import * as csv from 'csv-parse';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Initialize S3 client
 const s3 = new S3Client({
-    region: process.env.AWS_BUCKET_REGION!,
-    credentials: {
-        accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY!,
-    },
+  region: process.env.AWS_BUCKET_REGION!,
+  credentials: {
+    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY!,
+  },
 });
 
 export async function KPIGenerator(userID: string, projectUUID: string, csvContent: string, projectContext: string) {
-    try {
-        // Parse CSV to analyze structure and sample data
-        const parser = csv.parse(csvContent, {
-            columns: true,
-            skip_empty_lines: true
-        });
+  const gptModel = "gpt-4o-mini-2024-07-18";
 
-        const records = [];
-        const maxSampleRows = 100; // Limit the number of rows to avoid token limits
+  try {
+    // Parse CSV to analyze structure and sample data
+    const parser = csv.parse(csvContent, {
+      columns: true,
+      skip_empty_lines: true
+    });
 
-        for await (const record of parser) {
-            records.push(record);
-            if (records.length >= maxSampleRows) break;
-        }
+    const records = [];
+    const maxSampleRows = 100; // Limit the number of rows to avoid token limits
 
-        if (records.length === 0) {
-            throw new Error("CSV file contains no data");
-        }
+    for await (const record of parser) {
+      records.push(record);
+      if (records.length >= maxSampleRows) break;
+    }
 
-        // Extract column names
-        const columns = Object.keys(records[0]);
+    if (records.length === 0) {
+      throw new Error("CSV file contains no data");
+    }
 
-        // Create a summary of the data for OpenAI
-        const dataSummary = {
-            columns: columns,
-            rowCount: records.length,
-            sampleData: records.slice(0, 5), // Include a few sample rows
-        };
+    // Extract column names
+    const columns = Object.keys(records[0]);
 
-        // Prepare the prompt for OpenAI
-        const prompt = `
-  You are given:
-  1. A CSV dataset.
-  2. The columns of the CSV: ${JSON.stringify(columns)}
-  3. The number of rows in the CSV: ${records.length}+
-  4. The raw CSV data: ${JSON.stringify(records, null, 2)}
-  5. Additional context that may help interpret or calculate KPIs:
-     ${projectContext}
+    // STEP 1: Initial data analysis prompt with sample data included
+    const analysisPrompt = `
+  You are a data analyst tasked with understanding a CSV dataset.
+  
+  Dataset information:
+  1. Columns: ${JSON.stringify(columns)}
+  2. Number of rows: ${records.length}+
+  3. Context provided by user: ${projectContext}
+  4. Sample data: ${JSON.stringify(records.slice(0, 10), null, 2)}
+  
+  Analyze this dataset and provide:
+  1. A summary of what this dataset represents
+  2. Key metrics or relationships present in the data
+  3. Potential insights that could be derived
+  4. Any patterns, anomalies, or important observations
+  5. Suggestions for meaningful KPIs that could be calculated
+
+  Return your analysis as valid JSON with this structure:
+  {
+    "datasetDescription": "Brief description of what this dataset represents",
+    "keyMetrics": ["metric1", "metric2", "metric3"],
+    "relationships": ["relationship1", "relationship2"],
+    "potentialInsights": ["insight1", "insight2", "insight3"],
+    "kpiSuggestions": ["suggestion1", "suggestion2", "suggestion3", "suggestion4"]
+  }
+  `;
+
+    // Call OpenAI API for initial analysis
+    const analysisCompletion = await openai.chat.completions.create({
+      messages: [{ role: "user", content: analysisPrompt }],
+      model: gptModel,
+      temperature: 0.3,
+      response_format: { type: "json_object" }
+    });
+
+    const analysisResponse = analysisCompletion.choices[0].message.content;
+
+    if (!analysisResponse) {
+      throw new Error("Empty analysis response from OpenAI");
+    }
+
+    const analysisResults = JSON.parse(analysisResponse);
+    console.log(analysisResults);
+
+    // STEP 2: Generate KPIs based on the analysis and all data
+    const kpiPrompt = `
+  You are a KPI specialist tasked with converting suggested KPI ideas into fully actionable metrics from the dataset.
+
+  I've already analyzed the dataset and here's what I know:
+  ${JSON.stringify(analysisResults, null, 2)}
+
+  Additional context from user:
+  ${projectContext}
+
+  Raw data information:
+  - Columns: ${JSON.stringify(columns)}
+  - Total rows: ${records.length}
+  - Complete dataset: ${JSON.stringify(records, null, 2)}
 
   Your task:
-  - Analyze the CSV dataset.
-  - Derive 4 realistic and valuable Key Performance Indicators (KPIs) directly from the data.
-  - Each KPI must accurately reflect actual calculations based on the provided data.
-  - If the data does not contain enough information to compute a certain KPI precisely, state your assumption clearly but still provide the best estimate or pivot to a relevant KPI that can be computed.
-  - Provide a brief explanation (5–10 words) about why each KPI is important.
+  - Create exactly 4 Key Performance Indicators (KPIs) using only the suggestions found in "kpiSuggestions" from the analysis above
+  - For each suggestion, derive a KPI that is directly calculable from the provided data
+  - Make the KPIs insightful, actionable, and relevant to the dataset context
+  - Use the actual values from the dataset for calculations
+  - If assumptions are needed, make reasonable ones based on the provided information
+  - Ensure the KPIs reflect the most important metrics for this type of data
 
   Output format requirements:
-  - Return your answer as valid JSON only, following this exact structure:
-    {
-      "kpis": [
-        {
-          "header": "KPI Title",
-          "value": "KPI Value (e.g. number, percentage, or short text without captions)",
-          "explanation": "Brief explanation (5-10 words max)"
-        },
-        {
-          "header": "KPI Title",
-          "value": "...",
-          "explanation": "..."
-        },
-        {
-          "header": "KPI Title",
-          "value": "...",
-          "explanation": "..."
-        },
-        {
-          "header": "KPI Title",
-          "value": "...",
-          "explanation": "..."
-        }
-      ]
-    }
-  
+  - Return only a valid JSON with this exact structure:
+  {
+    "kpis": [
+      {
+        "header": "KPI Title",
+        "value": "KPI Value (number, percentage, or short text)",
+        "explanation": "Brief explanation (5-10 words max)"
+      },
+      {
+        "header": "KPI Title",
+        "value": "...",
+        "explanation": "..."
+      },
+      {
+        "header": "KPI Title",
+        "value": "...",
+        "explanation": "..."
+      },
+      {
+        "header": "KPI Title",
+        "value": "...",
+        "explanation": "..."
+      }
+    ]
+  }
+
   Important guidelines:
-  - Do not include any text outside the JSON.
-  - Do not add extra fields; keep the JSON structure exact.
-  - "value" must be derived from the data or estimated based on any assumptions. Provide numeric or short-text values only (no words like 'Value:' or 'Total:' before the number).
-  - "explanation" should be concise, describing why the KPI is useful or actionable (5–10 words).
-  - Avoid lengthy justifications or disclaimers. Stick to the specified output format.
+  - "value" must be a specific metric derived from the data (no prefixes like 'Value:')
+  - "explanation" must be concise (5-10 words only)
+  - Ensure calculations are accurate based on the provided data
+  - Do not introduce new KPIs; only use the four "kpiSuggestions" provided
+  - Use actual calculated values from the dataset, not placeholders
 `;
 
 
-        // Call OpenAI API
-        const completion = await openai.chat.completions.create({
-            messages: [{ role: "user", content: prompt }],
-            model: "gpt-3.5-turbo-0125", // or another appropriate model
-            temperature: 0.5,
-            response_format: { type: "json_object" }
-        });
+    // Call OpenAI API for KPI generation
+    const kpiCompletion = await openai.chat.completions.create({
+      messages: [{ role: "user", content: kpiPrompt }],
+      model: gptModel,
+      temperature: 0.5,
+      response_format: { type: "json_object" }
+    });
 
+    const kpiResponse = kpiCompletion.choices[0].message.content;
 
-        // Extract the JSON response from OpenAI
-        const responseContent = completion.choices[0].message.content;
-
-        if (!responseContent) {
-            throw new Error("Empty response from OpenAI");
-        }
-
-        const kpiResults = JSON.parse(responseContent);
-
-        // Store the KPI results in the S3 bucket
-        const supabase = await createClient();
-        const { data } = await supabase.auth.getUser();
-
-        if (!data?.user) {
-            throw new Error("Unauthorized");
-        }
-
-        // Upload the KPI results to S3
-        const uploadCommand = new PutObjectCommand({
-            Bucket: process.env.AWS_BUCKET_NAME!,
-            Key: `projects/${userID}/${projectUUID}/kpi-data.json`,
-        });
-
-        // Get a signed URL for uploading the KPI data
-        const uploadUrl = await getSignedUrl(s3, uploadCommand, { expiresIn: 60 });
-
-        // Upload the KPI results
-        await fetch(uploadUrl, {
-            method: "PUT",
-            body: JSON.stringify(kpiResults)
-        });
-        console.log("SHOULDVE UPLOADED")
-
-        return { success: true };
-
-    } catch (error) {
-        console.error("Error generating KPIs:", error);
-        return { success: false, error: (error as Error).message };
+    if (!kpiResponse) {
+      throw new Error("Empty KPI response from OpenAI");
     }
+
+    const kpiResults = JSON.parse(kpiResponse);
+
+    // Create a combined result with both the analysis and KPIs
+
+    // Store the combined results in the S3 bucket
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+
+    if (!data?.user) {
+      throw new Error("Unauthorized");
+    }
+
+    // Upload the KPI results to S3
+    const uploadCommand = new PutObjectCommand({
+      Bucket: process.env.AWS_BUCKET_NAME!,
+      Key: `projects/${userID}/${projectUUID}/kpi-data.json`,
+      Body: JSON.stringify(kpiResults.kpis)
+    });
+
+    // Get a signed URL for uploading the KPI data
+    const uploadUrl = await getSignedUrl(s3, uploadCommand, { expiresIn: 60 });
+
+    // Upload the KPI results
+    await fetch(uploadUrl, {
+      method: "PUT",
+      body: JSON.stringify(kpiResults.kpis)
+    });
+    console.log("Successfully uploaded KPI data with analysis");
+
+    return { success: true };
+
+  } catch (error) {
+    console.error("Error generating KPIs:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function projectPromptSetup(userID: string, projectUUID: string, csvContent: string, projectContext: string) {
 }

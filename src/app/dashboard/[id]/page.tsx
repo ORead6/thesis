@@ -1,585 +1,516 @@
-"use client";
+"use client"
 
-import React, { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PlusCircle, BarChart4, PieChart, LineChart, Grid3X3, Settings, Info, ChevronDown, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 import {
-  BarChart3,
-  PieChart,
-  LineChart,
-  Users,
-  Clock,
-  Calendar,
-  ArrowLeft,
-  Download,
-  Share2,
-  Star,
-  Activity,
-  Timer,
-  Medal,
-  TrendingUp
-} from "lucide-react";
-import Link from "next/link";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
-import { Bar, Line, Pie } from 'react-chartjs-2';
-import { getCurrentProject, getKPIData } from "../actions";
-import { Loader2 } from "lucide-react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-// Register ChartJS components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+// You'll need to create these server actions in your actions.ts file
+import { saveDashboardConfig, getDashboardConfig } from '@/app/dashboard/actions';
 
-export default function ProjectPage() {
-  const { id } = useParams();
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [kpis, setKpis] = useState([
-    { header: "Total Matches", value: "128", explanation: "+12 since last month" },
-    { header: "Average Goals", value: "2.7", explanation: "-0.3 from last season" },
-    { header: "Top Scorer", value: "17 goals", explanation: "Kane (Manchester United)" },
-    { header: "Pass Accuracy", value: "86.2%", explanation: "+1.4% improvement" },
-  ]);
+const DashboardBuilder = () => {
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+  const { toast } = useToast();
+
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [dashboardComponents, setDashboardComponents] = useState<any[]>([]);
+  const [isAddComponentOpen, setIsAddComponentOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Ref to track if dashboard has been modified since last save
+  const isDirtyRef = useRef(false);
+  // Ref to hold the latest dashboard configuration
+  const dashboardConfigRef = useRef<any>(null);
+  // Ref to track if initial loading is complete
+  const initialLoadCompleteRef = useRef(false);
 
+  const steps = [
+    { title: 'Welcome to Your Dashboard', description: 'This guide will help you create a valuable dashboard tailored to your needs.' },
+    { title: 'Add Components', description: 'Click the + button to add charts, tables, or KPI cards that matter to you.' },
+    { title: 'Customize Layout', description: 'Drag components to rearrange. Resize using the size dropdown in each component.' },
+    { title: 'Configure Data', description: 'Click the settings icon on each component to connect it to your data sources.' },
+  ];
+
+  const componentTypes = [
+    { type: 'lineChart', icon: <LineChart className="h-8 w-8 text-blue-500" />, title: 'Line Chart', description: 'Track changes over time' },
+    { type: 'barChart', icon: <BarChart4 className="h-8 w-8 text-green-500" />, title: 'Bar Chart', description: 'Compare values across categories' },
+    { type: 'pieChart', icon: <PieChart className="h-8 w-8 text-purple-500" />, title: 'Pie Chart', description: 'Show composition of data' },
+    { type: 'dataTable', icon: <Grid3X3 className="h-8 w-8 text-gray-500" />, title: 'Data Table', description: 'View detailed records' },
+    { type: 'kpiCard', icon: <Info className="h-8 w-8 text-amber-500" />, title: 'KPI Card', description: 'Track key performance indicators' },
+  ];
+
+  // Update the dashboard config ref when state changes
   useEffect(() => {
-    async function gettingCurrentProject() {
-      if (!id) return;
-
-      try {
-        // Get project data from Supabase using the server action
-        const response = await getCurrentProject(id as string);
-
-        if (response.error) {
-          console.error("Error fetching project:", response.error);
-          return;
-        }
-
-        if (response.project) {
-          setIsFavorite(response.project.metadata?.isFavourite || false);
-
-          // Create a merged object with default values and actual data
-          setProject({
-            id: response.project.id,
-            title: response.project.title,
-            description: response.project.description || "No description available",
-            createdAt: response.project.metadata?.createdAt
-              ? new Date(response.project.metadata.createdAt).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })
-              : new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              }),
-            members: 3, // You might want to fetch this data or keep it static
-            charts: project.charts // Keep your mock chart definitions
-          });
-        }
-      } catch (error) {
-        console.error("Failed to fetch project data:", error);
-      }
+    // Don't mark as dirty during initial load
+    if (initialLoadCompleteRef.current) {
+      isDirtyRef.current = true;
+      
+      // Update the dashboard config ref with current state
+      dashboardConfigRef.current = {
+        components: dashboardComponents,
+        welcomeGuide: {
+          show: showWelcomeGuide,
+          currentStep: currentStep,
+        },
+        activeTab: activeTab,
+        lastUpdated: new Date().toISOString(),
+      };
     }
+  }, [dashboardComponents, showWelcomeGuide, currentStep, activeTab]);
 
-    gettingCurrentProject();
-  }, [id]);
-
-
-  // Mock sports data dashboard project
-  const [project, setProject] = useState({
-    id,
-    title: "",
-    description: "",
-    createdAt: "",
-    members: 3,
-    charts: [
-      {
-        id: "chart1",
-        title: "Team Performance",
-        type: "bar",
-        description: "Win/loss ratio and points accumulated by each team"
-      },
-      {
-        id: "chart2",
-        title: "Player Metrics",
-        type: "line",
-        description: "Key player statistics over the last 10 matches"
-      },
-      {
-        id: "chart3",
-        title: "Goal Distribution",
-        type: "pie",
-        description: "Breakdown of goals by time period and play type"
-      }
-    ]
-  });
-
-  // Mock data for Team Performance bar chart
-  const teamPerformanceData = {
-    labels: ['Man City', 'Arsenal', 'Liverpool', 'Chelsea', 'Tottenham'],
-    datasets: [
-      {
-        label: 'Wins',
-        data: [18, 16, 15, 13, 12],
-        backgroundColor: 'rgba(52, 152, 219, 0.7)',
-      },
-      {
-        label: 'Draws',
-        data: [5, 6, 4, 8, 7],
-        backgroundColor: 'rgba(241, 196, 15, 0.7)',
-      },
-      {
-        label: 'Losses',
-        data: [4, 5, 8, 6, 8],
-        backgroundColor: 'rgba(231, 76, 60, 0.7)',
-      },
-    ],
+  // Function to save dashboard configuration to S3
+  const saveDashboardState = async () => {
+    if (!isDirtyRef.current || !dashboardConfigRef.current) {
+      return; // Nothing to save
+    }
+    
+    try {
+      await saveDashboardConfig(projectId, dashboardConfigRef.current);
+      isDirtyRef.current = false; // Reset the dirty flag after successful save
+      console.log("Dashboard configuration saved to S3");
+    } catch (error) {
+      console.error("Error saving dashboard configuration:", error);
+    }
   };
 
-  // Mock data for Player Metrics line chart
-  const playerMetricsData = {
-    labels: ['Match 1', 'Match 2', 'Match 3', 'Match 4', 'Match 5', 'Match 6', 'Match 7', 'Match 8', 'Match 9', 'Match 10'],
-    datasets: [
-      {
-        label: 'Goals',
-        data: [1, 0, 2, 0, 1, 2, 0, 1, 0, 1],
-        borderColor: 'rgba(52, 152, 219, 1)',
-        backgroundColor: 'rgba(52, 152, 219, 0.2)',
-        tension: 0.3,
-      },
-      {
-        label: 'Assists',
-        data: [0, 1, 1, 0, 2, 0, 1, 0, 2, 0],
-        borderColor: 'rgba(46, 204, 113, 1)',
-        backgroundColor: 'rgba(46, 204, 113, 0.2)',
-        tension: 0.3,
-      },
-    ],
-  };
-
-  // Mock data for Goal Distribution pie chart
-  const goalDistributionData = {
-    labels: ['First Half', 'Second Half', 'Extra Time'],
-    datasets: [
-      {
-        data: [38, 52, 10],
-        backgroundColor: [
-          'rgba(52, 152, 219, 0.7)',
-          'rgba(46, 204, 113, 0.7)',
-          'rgba(155, 89, 182, 0.7)',
-        ],
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  // Mock data for player rankings
-  const playerRankingsData = {
-    labels: ['Kane', 'Salah', 'Haaland', 'Son', 'De Bruyne'],
-    datasets: [
-      {
-        label: 'Player Rating',
-        data: [8.7, 8.5, 8.9, 8.1, 8.4],
-        backgroundColor: 'rgba(52, 152, 219, 0.7)',
-      },
-    ],
-  };
-
-  // Mock data for goal scorers
-  const goalScorersData = {
-    labels: ['Kane', 'Salah', 'Haaland', 'Son', 'De Bruyne', 'Others'],
-    datasets: [
-      {
-        data: [22, 18, 24, 14, 9, 35],
-        backgroundColor: [
-          'rgba(52, 152, 219, 0.7)',
-          'rgba(46, 204, 113, 0.7)',
-          'rgba(155, 89, 182, 0.7)',
-          'rgba(241, 196, 15, 0.7)',
-          'rgba(231, 76, 60, 0.7)',
-          'rgba(149, 165, 166, 0.7)',
-        ],
-      },
-    ],
-  };
-
-  // Mock data for minutes played
-  const minutesPlayedData = {
-    labels: ['Kane', 'Salah', 'Haaland', 'Son', 'De Bruyne'],
-    datasets: [
-      {
-        label: 'Minutes Played',
-        data: [1845, 1760, 1680, 1620, 1590],
-        backgroundColor: 'rgba(155, 89, 182, 0.7)',
-      },
-    ],
-  };
-
-  // Mock data for league table
-  const leagueTableData = {
-    labels: ['Man City', 'Arsenal', 'Liverpool', 'Chelsea', 'Tottenham', 'Man United', 'Newcastle'],
-    datasets: [
-      {
-        label: 'Points',
-        data: [59, 54, 49, 47, 43, 41, 39],
-        backgroundColor: 'rgba(52, 152, 219, 0.7)',
-      },
-    ],
-  };
-
-  // Mock data for team comparison
-  const teamComparisonData = {
-    labels: ['Goals Scored', 'Goals Conceded', 'Possession %', 'Pass Accuracy %', 'Shots per Game'],
-    datasets: [
-      {
-        label: 'Man City',
-        data: [58, 21, 67, 91, 18.3],
-        backgroundColor: 'rgba(52, 152, 219, 0.5)',
-      },
-      {
-        label: 'Arsenal',
-        data: [52, 20, 58, 88, 16.7],
-        backgroundColor: 'rgba(231, 76, 60, 0.5)',
-      },
-    ],
-  };
-
+  // Load dashboard configuration on component mount
   useEffect(() => {
-    async function fetchKPIData() {
-      if (!id) return;
-
+    const loadDashboardConfig = async () => {
       setIsLoading(true);
       try {
-        const response = await getKPIData(id as string);
-        if (response.success && response.success.kpis) {
-          setKpis(response.success.kpis);
-        } else {
-          console.error("Failed to load KPI data:", response.error);
+        const config = await getDashboardConfig(projectId);
+
+        // Debug the response
+        console.log("Dashboard config response:", config);
+
+        if (config && 'success' in config && config.success) {
+          // Apply saved configuration
+          const savedConfig = config.success;
+
+          if (savedConfig.components && Array.isArray(savedConfig.components)) {
+            setDashboardComponents(savedConfig.components);
+          }
+
+          if (savedConfig.welcomeGuide) {
+            setShowWelcomeGuide(savedConfig.welcomeGuide.show);
+            setCurrentStep(savedConfig.welcomeGuide.currentStep || 0);
+          }
+
+          if (savedConfig.activeTab) {
+            setActiveTab(savedConfig.activeTab);
+          }
+          
+          // Initialize the config ref with loaded data
+          dashboardConfigRef.current = savedConfig;
+        } else if (config && 'error' in config) {
+          console.error("Error in dashboard config:", config.error);
         }
       } catch (error) {
-        console.error("Error loading KPI data:", error);
+        console.error("Error loading dashboard configuration:", error);
+
       } finally {
-        // Artificially delay the loading state to show the loading animation
+        // Add a slight delay to ensure the UI has time to update
         setTimeout(() => {
           setIsLoading(false);
-        }, 1000);
+          initialLoadCompleteRef.current = true;
+        }, 500);
       }
+    };
+
+    loadDashboardConfig();
+  }, [projectId, toast]);
+
+  // Save on navigation or page close
+  useEffect(() => {
+    // Function to handle before unload event
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirtyRef.current) {
+        // Save the dashboard state before unloading
+        saveDashboardState();
+        
+        // The following is for showing a confirmation dialog, but modern browsers
+        // ignore custom messages and show their own standard message
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Cleanup event listeners on component unmount
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Save changes when component unmounts
+      if (isDirtyRef.current) {
+        saveDashboardState();
+      }
+    };
+  }, []);
+
+  // Use the useEffect to detect when the component might unmount
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current) {
+        saveDashboardState();
+      }
+    };
+  }, []);
+
+  // Add periodic saving as a fallback (e.g., every 5 minutes)
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (isDirtyRef.current) {
+        saveDashboardState();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Add a manual save button functionality
+  const handleManualSave = () => {
+    saveDashboardState();
+  };
+
+  // Your existing functions
+  const addComponent = (type: any) => {
+    const newComponent = {
+      id: Date.now().toString(),
+      type,
+      title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+      description: 'Click to configure',
+      size: 'md'
+    };
+    setDashboardComponents([...dashboardComponents, newComponent]);
+    setIsAddComponentOpen(false);
+  };
+
+  const removeComponent = (id: any) => {
+    setDashboardComponents(dashboardComponents.filter((comp: any) => comp.id !== id));
+  };
+
+  // New function to update component size
+  const updateComponentSize = (id: string, newSize: string) => {
+    setDashboardComponents(
+      dashboardComponents.map((comp: any) => 
+        comp.id === id ? { ...comp, size: newSize } : comp
+      )
+    );
+  };
+
+  const nextStep = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      setShowWelcomeGuide(false);
     }
-
-    fetchKPIData();
-  }, [id]);
-
-  // Chart options
-  const barOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' as const },
-    },
   };
 
-  const lineOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' as const },
-    },
-  };
-
-  const pieOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' as const },
-    },
-  };
-
-  const getChartIcon = (type: string) => {
+  const renderComponentIcon = (type: any) => {
     switch (type) {
-      case "bar":
-        return <BarChart3 className="h-5 w-5 text-primary" />;
-      case "pie":
-        return <PieChart className="h-5 w-5 text-primary" />;
-      case "line":
-        return <LineChart className="h-5 w-5 text-primary" />;
-      default:
-        return <BarChart3 className="h-5 w-5 text-primary" />;
+      case 'lineChart': return <LineChart className="h-5 w-5" />;
+      case 'barChart': return <BarChart4 className="h-5 w-5" />;
+      case 'pieChart': return <PieChart className="h-5 w-5" />;
+      case 'dataTable': return <Grid3X3 className="h-5 w-5" />;
+      case 'kpiCard': return <Info className="h-5 w-5" />;
+      default: return <Info className="h-5 w-5" />;
     }
   };
 
-  // Render the appropriate chart based on type
-  const renderChart = (chartId: string) => {
-    switch (chartId) {
-      case "chart1":
-        return <Bar data={teamPerformanceData} options={barOptions} />;
-      case "chart2":
-        return <Line data={playerMetricsData} options={lineOptions} />;
-      case "chart3":
-        return <Pie data={goalDistributionData} options={pieOptions} />;
-      default:
-        return <div>Chart not available</div>;
+  const getComponentSizeClass = (size: any) => {
+    switch (size) {
+      case 'sm': return 'col-span-1';
+      case 'md': return 'col-span-2';
+      case 'lg': return 'col-span-3';
+      case 'xl': return 'col-span-4';
+      default: return 'col-span-2';
+    }
+  };
+
+  const getComponentHeightClass = (size: any) => {
+    switch (size) {
+      case 'sm': return 'h-48'; // Small height
+      case 'md': return 'h-64'; // Medium height
+      case 'lg': return 'h-80'; // Large height
+      case 'xl': return 'h-96'; // Extra large height
+      default: return 'h-64';   // Default medium height
+    }
+  };
+
+  // Helper to get size display name
+  const getSizeDisplayName = (size: string) => {
+    switch (size) {
+      case 'sm': return 'Small';
+      case 'md': return 'Medium';
+      case 'lg': return 'Large';
+      case 'xl': return 'Extra Large';
+      default: return 'Medium';
     }
   };
 
   return (
-    <>
-      {/* Full-page loading overlay with blur effect */}
+    <div className="px-6 py-6 w-full relative">
       {isLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-16 w-16 animate-spin text-primary" />
-            <div className="text-xl font-medium">Loading dashboard data...</div>
-            <div className="text-sm text-muted-foreground">Fetching analytics from S3 and database</div>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" aria-hidden="true" />
+            <span className="mt-4 text-muted-foreground">
+              Loading your dashboard, please wait...
+            </span>
           </div>
         </div>
       )}
 
-      <div className="space-y-8 pb-10">
-        {/* Back link and project header */}
-        <div className="flex flex-col space-y-4">
-          <Link
-            href="/dashboard"
-            className="flex items-center text-sm text-muted-foreground hover:text-primary w-fit"
+      <div className="px-6 py-6 w-full">
+        {/* Page Header */}
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-1">Your Data Dashboard</h1>
+            <p className="text-sm text-muted-foreground">
+              Visualize and analyze your data with customizable components
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={handleManualSave}
+            disabled={!isDirtyRef.current}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to dashboards
-          </Link>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">{project.title}</h1>
-              <p className="text-muted-foreground mt-1">{project.description}</p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsFavorite(!isFavorite)}
-                className="border-border"
-              >
-                <Star className={`mr-2 h-4 w-4 ${isFavorite ? "fill-yellow-400 text-yellow-400" : ""}`} />
-                {isFavorite ? "Favorited" : "Favorite"}
-              </Button>
-              <Button variant="outline" size="sm">
-                <Share2 className="mr-2 h-4 w-4" />
-                Share
-              </Button>
-              <Button variant="default" size="sm">
-                <Download className="mr-2 h-4 w-4" />
-                Export
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center text-sm text-muted-foreground">
-              <Calendar className="mr-2 h-4 w-4" />
-              Last updated: {project.createdAt}
-            </div>
-            <div className="flex items-center text-sm text-muted-foreground">
-              <Users className="mr-2 h-4 w-4" />
-              {project.members} team analysts
-            </div>
-          </div>
+            {isDirtyRef.current ? "Save Changes" : "All Changes Saved"}
+          </Button>
         </div>
 
-        {/* Dashboard tabs */}
-        <Tabs defaultValue="dashboard" className="space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Tabs Navigation with Add Component button inline */}
+        <div className="mb-6 flex items-center justify-between">
+          <Tabs defaultValue="dashboard" className="w-auto">
             <TabsList>
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="players">Players</TabsTrigger>
-              <TabsTrigger value="teams">Teams</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger
+                value="dashboard"
+                onClick={() => setActiveTab('dashboard')}
+                className={activeTab === 'dashboard' ? 'bg-primary text-primary-foreground' : ''}
+              >
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger
+                value="settings"
+                onClick={() => setActiveTab('settings')}
+                className={activeTab === 'settings' ? 'bg-primary text-primary-foreground' : ''}
+              >
+                Settings
+              </TabsTrigger>
+              <TabsTrigger
+                value="help"
+                onClick={() => setActiveTab('help')}
+                className={activeTab === 'help' ? 'bg-primary text-primary-foreground' : ''}
+              >
+                Help
+              </TabsTrigger>
             </TabsList>
+          </Tabs>
+          
+          {activeTab === 'dashboard' && (
+            <Button
+              onClick={() => setIsAddComponentOpen(!isAddComponentOpen)}
+              className="flex items-center gap-2"
+            >
+              <PlusCircle className="h-4 w-4" /> Add Component
+            </Button>
+          )}
+        </div>
 
-            <div className="flex items-center gap-2">
-              <div className="text-sm text-muted-foreground flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                Live updates
-              </div>
-            </div>
-          </div>
-
-          <TabsContent value="dashboard" className="space-y-6">
-            {/* Key Performance Indicators */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {kpis.map((kpi, index) => (
-                <Card key={index}>
-                  <CardHeader className="pb-2">
-                    <CardDescription>{kpi.header}</CardDescription>
-                    <CardTitle className="text-2xl">{kpi.value}</CardTitle>
+        {/* Main Content Area */}
+        <div className="w-full">
+          {activeTab === 'dashboard' && (
+            <div>
+              {showWelcomeGuide && (
+                <Card className="mb-6 border-primary/20 bg-primary/5">
+                  <CardHeader>
+                    <CardTitle>{steps[currentStep].title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm text-muted-foreground">
-                      {kpi.explanation}
-                    </div>
+                    <p>{steps[currentStep].description}</p>
                   </CardContent>
+                  <CardFooter className="flex justify-between">
+                    <Button variant="outline" onClick={() => setShowWelcomeGuide(false)}>Skip Tour</Button>
+                    <Button onClick={nextStep}>
+                      {currentStep < steps.length - 1 ? 'Next Step' : 'Get Started'}
+                    </Button>
+                  </CardFooter>
                 </Card>
-              ))}
-            </div>
+              )}
 
-            {/* Charts section */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {project.charts.map(chart => (
-                <Card key={chart.id} className="overflow-hidden">
-                  <CardHeader className="pb-2 flex flex-row items-start gap-4">
-                    <div className="rounded-xl bg-primary/10 dark:bg-primary/20 p-3 mt-1 shadow-sm">
-                      {getChartIcon(chart.type)}
-                    </div>
-                    <div>
-                      <CardTitle>{chart.title}</CardTitle>
-                      <CardDescription className="mt-1.5">{chart.description}</CardDescription>
-                    </div>
+              {isAddComponentOpen && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle>Choose a Component</CardTitle>
+                    <CardDescription>Select the type of visualization you want to add</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="h-[300px] p-4">
-                      {renderChart(chart.id)}
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {componentTypes.map((comp) => (
+                        <Card
+                          key={comp.type}
+                          className="cursor-pointer hover:bg-accent transition-colors"
+                          onClick={() => addComponent(comp.type)}
+                        >
+                          <CardContent className="flex flex-col items-center justify-center p-6">
+                            {comp.icon}
+                            <h3 className="mt-2 font-medium">{comp.title}</h3>
+                            <p className="text-xs text-muted-foreground text-center mt-1">{comp.description}</p>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )}
+
+              <div className="grid grid-cols-4 gap-6">
+                {dashboardComponents.map((component : any) => (
+                  <Card
+                    key={component.id}
+                    className={`${getComponentSizeClass(component.size)} border border-border hover:shadow-md transition-all duration-200 relative ${getComponentHeightClass(component.size)}`}
+                  >
+                    <div className="absolute top-3 right-3 flex space-x-1 z-10 bg-background/80 backdrop-blur-sm p-1 rounded-md">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted">
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                      
+                      {/* Size dropdown menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted">
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => updateComponentSize(component.id, 'sm')}
+                            className={component.size === 'sm' ? 'bg-accent' : ''}
+                          >
+                            Small
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => updateComponentSize(component.id, 'md')}
+                            className={component.size === 'md' ? 'bg-accent' : ''}
+                          >
+                            Medium
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => updateComponentSize(component.id, 'lg')}
+                            className={component.size === 'lg' ? 'bg-accent' : ''}
+                          >
+                            Large
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => updateComponentSize(component.id, 'xl')}
+                            className={component.size === 'xl' ? 'bg-accent' : ''}
+                          >
+                            Extra Large
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => removeComponent(component.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <CardHeader className="pb-2 pt-4">
+                      <div className="flex items-center">
+                        <div className="p-1.5 rounded-md bg-muted flex items-center justify-center">
+                          {renderComponentIcon(component.type)}
+                        </div>
+                        <CardTitle className="ml-2 text-lg font-medium">{component.title}</CardTitle>
+                      </div>
+                      <CardDescription className="text-muted-foreground text-sm">
+                        {component.description} • <span className="font-medium">{getSizeDisplayName(component.size)}</span>
+                      </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="flex-1 flex items-center justify-center bg-muted/50 rounded-md">
+                      <p className="text-muted-foreground text-sm">Component Preview</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {dashboardComponents.length === 0 && (
+                <div className="text-center py-12 bg-muted/50 rounded-lg border border-border">
+                  <PlusCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Your dashboard is empty</h3>
+                  <p className="text-muted-foreground">Click "Add Component" to get started</p>
+                  <Button
+                    className="mt-4"
+                    onClick={() => setIsAddComponentOpen(true)}
+                  >
+                    Add Your First Component
+                  </Button>
+                </div>
+              )}
             </div>
-          </TabsContent>
+          )}
 
-          <TabsContent value="players" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Player Performance</CardTitle>
-                <CardDescription>
-                  Individual player metrics and performance analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <Activity className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">Top Performers</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px]">
-                        <Bar data={playerRankingsData} options={barOptions} />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <Medal className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">Goal Scorers</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px]">
-                        <Pie data={goalScorersData} options={pieOptions} />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <Timer className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">Playing Time</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px]">
-                        <Bar data={minutesPlayedData} options={barOptions} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="teams" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Team Analysis</CardTitle>
-                <CardDescription>
-                  Comparative analysis of team performance and tactics
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">League Table</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[400px]">
-                        <Bar data={leagueTableData} options={barOptions} />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">Team Comparison</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[400px]">
-                        <Bar data={teamComparisonData} options={barOptions} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-4">
+          {activeTab === 'settings' && (
             <Card>
               <CardHeader>
                 <CardTitle>Dashboard Settings</CardTitle>
-                <CardDescription>
-                  Configure visualization preferences and data sources
-                </CardDescription>
+                <CardDescription>Configure your dashboard appearance and data sources</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[400px] flex items-center justify-center bg-muted/30 dark:bg-accent/40 rounded-md">
-                  <p className="text-muted-foreground">Settings options would appear here</p>
+                <p>Settings content would go here...</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'help' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Dashboard Help</CardTitle>
+                <CardDescription>Learn how to create an effective dashboard</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {steps.map((step, index) => (
+                    <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
+                      <h3 className="font-medium">{step.title}</h3>
+                      <p className="text-sm text-muted-foreground">{step.description}</p>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
-}
+};
+
+export default DashboardBuilder;

@@ -39,6 +39,7 @@ export async function getSignedURL(projectUUID: string) {
 
   return { success: { url: signedURL } };
 }
+
 export async function getKPIData(projectUUID: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.auth.getUser()
@@ -59,32 +60,48 @@ export async function getKPIData(projectUUID: string) {
   try {
     // Get the object from S3
     const response = await s3.send(getObjectCommand);
-    
+
     // Convert the readable stream to text
     const bodyContents = await response.Body?.transformToString();
-    
+
     if (!bodyContents) {
+      console.log("Empty KPI data returned");
       return { error: "No KPI data found" }
     }
-    
+
     // Parse the JSON content
-    const kpiData = JSON.parse(bodyContents);
-    
-    return { success: kpiData };
-  } catch (err) {
+    try {
+      const kpiData = JSON.parse(bodyContents);
+      if (!kpiData) {
+        return { error: "Invalid KPI data format" };
+      }
+      return { success: kpiData };
+    } catch (parseError) {
+      console.error("Error parsing KPI data JSON:", parseError);
+      return { error: "Invalid KPI data format" };
+    }
+  } catch (err: any) {
+    // Improve error logging with specific S3 error details
     console.error("Error fetching KPI data:", err);
-    return { error: "Failed to fetch KPI data" };
+
+    // Check if it's a NoSuchKey error (file doesn't exist)
+    if (err.name === 'NoSuchKey') {
+      return { error: "KPI data file doesn't exist for this project" };
+    }
+
+    // For other errors
+    return { error: "Failed to fetch KPI data", details: err.message };
   }
 }
 
 export async function getCurrentProject(projectId: string) {
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
-  
+
   if (userError || !userData?.user) {
     return { error: "Unauthorized" };
   }
-  
+
   // Get the project data
   const { data: project, error } = await supabase
     .from("projects")
@@ -92,11 +109,11 @@ export async function getCurrentProject(projectId: string) {
     .eq("id", projectId)
     .eq("owner", userData.user.id)
     .single();
-    
+
   if (error) {
     return { error: error.message };
   }
-  
+
   return { project };
 }
 
@@ -125,5 +142,72 @@ export async function deleteProjectFiles(userId: string, projectId: string) {
   } catch (error) {
     console.error("Error deleting project files:", error);
     return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function saveDashboardConfig(projectUUID: string, config: any) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error || !data?.user) {
+    console.log("Unauthorized");
+    return { error: "Unauthorized" };
+  }
+
+  const userID = data.user.id;
+
+  try {
+    // Upload the dashboard configuration to S3
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME!,
+        Key: `projects/${userID}/${projectUUID}/dashboard-config.json`,
+        Body: JSON.stringify(config),
+        ContentType: "application/json",
+      })
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving dashboard configuration:", error);
+    return { error: (error as Error).message };
+  }
+}
+
+export async function getDashboardConfig(projectUUID: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error || !data?.user) {
+    console.log("Unauthorized");
+    return { error: "Unauthorized" };
+  }
+
+  const userID = data.user.id;
+
+  try {
+    // Get the dashboard configuration from S3
+    const getCommand = new GetObjectCommand({
+      Bucket: process.env.AWS_BUCKET_NAME!,
+      Key: `projects/${userID}/${projectUUID}/dashboard-config.json`,
+    });
+
+    const response = await s3.send(getCommand);
+    const configText = await response.Body?.transformToString();
+
+    if (!configText) {
+      return { success: null };
+    }
+
+    const config = JSON.parse(configText);
+    return { success: config };
+  } catch (error) {
+    // Handle case where file doesn't exist yet - this isn't an error
+    if ((error as any).name === 'NoSuchKey') {
+      return { success: null };
+    }
+    
+    console.error("Error loading dashboard configuration:", error);
+    return { error: (error as Error).message };
   }
 }

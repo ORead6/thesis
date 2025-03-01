@@ -158,18 +158,18 @@ export default function ProjectsPage() {
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
 
-    // // Delete the database entry
-    // const { error } = await supabase
-    //   .from("projects")
-    //   .delete()
-    //   .eq("id", id);
+    // Delete the database entry
+    const { error } = await supabase
+      .from("projects")
+      .delete()
+      .eq("id", id);
 
-    // if (error) {
-    //   console.error("Error deleting project:", error);
-    //   // Revert the local change if the server delete failed
-    //   refreshProjects();
-    //   return;
-    // }
+    if (error) {
+      console.error("Error deleting project:", error);
+      // Revert the local change if the server delete failed
+      refreshProjects();
+      return;
+    }
 
     // Delete the associated files in S3
     if (userData?.user) {
