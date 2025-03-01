@@ -118,25 +118,40 @@ export async function getCurrentProject(projectId: string) {
 }
 
 export async function deleteProjectFiles(userId: string, projectId: string) {
-  // Could loop through a constant in a seperate file that has all the file names
-  // That we need to delete or simply figure out how to delete that specific folder
-
   try {
-    // Delete the main CSV file
-    await s3.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME!,
-        Key: `projects/${userId}/${projectId}/csvData.csv`,
-      })
-    );
+    // First, list all objects with the project prefix
+    const { ListObjectsV2Command, DeleteObjectsCommand } = await import("@aws-sdk/client-s3");
 
-    // Delete the KPI data file
-    await s3.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME!,
-        Key: `projects/${userId}/${projectId}/kpi-data.json`,
-      })
-    );
+    const projectPrefix = `projects/${userId}/${projectId}/`;
+
+    // List all objects in the project directory
+    const listCommand = new ListObjectsV2Command({
+      Bucket: process.env.AWS_BUCKET_NAME!,
+      Prefix: projectPrefix
+    });
+
+    const listedObjects = await s3.send(listCommand);
+
+    if (!listedObjects.Contents || listedObjects.Contents.length === 0) {
+      console.log("No files found to delete");
+      return { success: true };
+    }
+
+    // Prepare the delete command with all objects
+    const deleteParams = {
+      Bucket: process.env.AWS_BUCKET_NAME!,
+      Delete: {
+        Objects: listedObjects.Contents.map(({ Key }) => ({ Key }))
+      }
+    };
+
+    // Delete all listed objects
+    await s3.send(new DeleteObjectsCommand(deleteParams));
+
+    // Check if there might be more objects (S3 returns max 1000 keys per request)
+    if (listedObjects.IsTruncated) {
+      console.log("Warning: Not all project files may have been deleted due to pagination limits");
+    }
 
     return { success: true };
   } catch (error) {
@@ -206,7 +221,7 @@ export async function getDashboardConfig(projectUUID: string) {
     if ((error as any).name === 'NoSuchKey') {
       return { success: null };
     }
-    
+
     console.error("Error loading dashboard configuration:", error);
     return { error: (error as Error).message };
   }

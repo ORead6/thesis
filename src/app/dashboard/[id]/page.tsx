@@ -449,9 +449,6 @@ const DashboardBuilder = () => {
                         </div>
                         <CardTitle className="ml-2 text-lg font-medium">{component.title}</CardTitle>
                       </div>
-                      <CardDescription className="text-muted-foreground text-sm">
-                        {component.description} • <span className="font-medium">{getSizeDisplayName(component.size)}</span>
-                      </CardDescription>
                     </CardHeader>
 
                     <CardContent className="flex-1 flex items-center justify-center bg-muted/50 rounded-md">
