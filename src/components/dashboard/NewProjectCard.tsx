@@ -25,7 +25,7 @@ import ICONS from "@/components/dashboard/availableIcons";
 import { createClient } from "@/utils/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { getSignedURL } from "@/app/dashboard/actions";
-import { KPIGenerator } from "@/utils/openai/actions";
+import { KPIGenerator, projectPromptSetup } from "@/utils/openai/actions";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface NewProjectCardProps {
@@ -187,12 +187,12 @@ const NewProjectCard: React.FC<NewProjectCardProps> = ({
       setCreationStatus("Upload successful! Finalizing your project...");
 
       // Where we do OPEN AI STUFFS
-      setCreationStatus("Generating KPIs");
+      setCreationStatus("Analyzing data and generating dashboard suggestions...");
 
       const csvContent = await projectData.csvFile.text();
 
       // Use dataContext instead of description for AI generation
-      const result = await KPIGenerator(userData!.id, uuid, csvContent, projectData.dataContext);
+      await projectPromptSetup(userData!.id, uuid, csvContent, projectData.dataContext);
 
       // Show success state for 1.5 seconds before closing
       setCreationSuccess(true);

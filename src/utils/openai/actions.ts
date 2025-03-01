@@ -198,3 +198,6 @@ export async function KPIGenerator(userID: string, projectUUID: string, csvConte
     return { success: false, error: (error as Error).message };
   }
 }
+
+export async function projectPromptSetup(userID: string, projectUUID: string, csvContent: string, projectContext: string) {
+}
