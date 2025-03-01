@@ -273,15 +273,27 @@ export default function ProjectPage() {
       setIsLoading(true);
       try {
         const response = await getKPIData(id as string);
-        if (response.success && response.success.kpis) {
-          setKpis(response.success.kpis);
+
+        if (response.success) {
+          // Check if response has the expected structure
+          if (response.success.kpis) {
+            setKpis(response.success.kpis);
+          } else if (Array.isArray(response.success)) {
+            // Handle case where the response might be directly an array
+            setKpis(response.success);
+          } else {
+            console.error("Unexpected KPI data structure:", response.success);
+            // Set default KPIs or show message
+          }
         } else {
-          console.error("Failed to load KPI data:", response.error);
+          // Improved error logging
+          console.error("Failed to load KPI data:",
+            response.error,
+            response.details ? `Details: ${response.details}` : '');
         }
       } catch (error) {
         console.error("Error loading KPI data:", error);
       } finally {
-        // Artificially delay the loading state to show the loading animation
         setTimeout(() => {
           setIsLoading(false);
         }, 1000);
