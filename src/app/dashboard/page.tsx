@@ -8,6 +8,7 @@ import { Inbox } from "lucide-react";
 import type { Project } from "@/types/project";
 import { createClient } from "@/utils/supabase/client";
 import { deleteProjectFiles } from "./actions";
+import { deleteAIAssistant } from "@/utils/openai/actions";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -158,6 +159,20 @@ export default function ProjectsPage() {
     const supabase = createClient();
     const { data: userData } = await supabase.auth.getUser();
 
+    // First we get the data
+    const { data: assistantData, error: getError } = await supabase
+      .from("projects")
+      .select("assistantData")
+      .eq("id", id)
+      .single()
+
+    if (getError) {
+      console.error("Error deleting project:", getError);
+      // Revert the local change if the server delete failed
+      refreshProjects();
+      return;
+    }
+
     // Delete the database entry
     const { error } = await supabase
       .from("projects")
@@ -174,6 +189,7 @@ export default function ProjectsPage() {
     // Delete the associated files in S3
     if (userData?.user) {
       const deleteResult = await deleteProjectFiles(userData.user.id, id);
+      const deleteAssistants = await deleteAIAssistant(assistantData)
 
       if (!deleteResult.success) {
         console.error("Error deleting project files:", deleteResult.error);

@@ -5,6 +5,8 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import OpenAI from "openai";
 import * as csv from 'csv-parse';
+import { ProjectFormData } from "@/types/project-types";
+import { resourceLimits } from "worker_threads";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -197,6 +199,14 @@ export async function KPIGenerator(userID: string, projectUUID: string, csvConte
     console.error("Error generating KPIs:", error);
     return { success: false, error: (error as Error).message };
   }
+}
+
+export async function deleteAIAssistant(assistantData: { assistantData: any; }){
+  let assistantId = assistantData.assistantData.assistant_id
+  let fileID = assistantData.assistantData.file_id
+
+  const assistantResponse = await openai.beta.assistants.del(assistantId);
+  const fileResponse = await openai.files.del(fileID);
 }
 
 export async function projectPromptSetup(userID: string, projectUUID: string, csvContent: string, projectContext: string) {
@@ -418,4 +428,35 @@ export async function projectPromptSetup(userID: string, projectUUID: string, cs
     console.error("Error in projectPromptSetup:", err);
     return { success: false, error: (err as Error).message };
   }
+}
+
+export async function createAIAssistant(id: string, uuid: string, projectData: ProjectFormData, csvFile: File) {
+
+  const assistantInstructions = `You are a professional ${projectData.sport} data analysist. When asked any sports data analysis questions, write and run code to answer the question whilst also reffering to the csv provided to obtain accurate results. This is the given context of the data: ${projectData.dataContext}`;
+
+  const formData = new FormData();
+  
+  // Add the file from drag and drop
+  formData.append('file', csvFile);
+
+  const uploadFileOpenaiAPI = await openai.files.create({
+    file: csvFile,
+    purpose: "assistants"
+  })
+
+  const assistant = await openai.beta.assistants.create({
+    instructions: assistantInstructions,
+    model: "gpt-4o",
+    tools: [{ "type": "code_interpreter" }],
+    tool_resources: {
+      "code_interpreter": {
+        "file_ids": [uploadFileOpenaiAPI.id]
+      }
+    }
+  });
+
+  return ({
+    file_id: uploadFileOpenaiAPI.id,
+    assistant_id: assistant.id
+  })
 }

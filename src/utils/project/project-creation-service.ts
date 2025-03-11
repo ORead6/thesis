@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/client';
 import { getSignedURL } from '@/app/dashboard/actions';
-import { projectPromptSetup } from '@/utils/openai/actions';
+import { createAIAssistant, projectPromptSetup } from '@/utils/openai/actions';
 import { v4 as uuidv4 } from 'uuid';
 import { ProjectFormData } from '@/types/project-types';
 
@@ -22,6 +22,13 @@ export async function createProject(
     const uuid = uuidv4();
     const supabaseFilePath = `projects/${userData.id}/${uuid}`;
 
+    if (!projectData.csvFile) {
+      return { success: false, error: "Missing file data" };
+    }
+
+    // TODO I want to Upload the csv to openai so i can used code interpreter to not lose any context in prompts
+    const assistantSetup = await createAIAssistant(userData.id, uuid, projectData, projectData.csvFile);
+
     const projectDataForDB = {
       id: uuid,
       title: projectData.title,
@@ -32,8 +39,10 @@ export async function createProject(
         icon: projectData.icon,
         dataFilePath: supabaseFilePath,
         dataContext: projectData.dataContext,
+        selectedSport: projectData.sport,
         createdAt: new Date().toISOString(),
-      }
+      },
+      assistantData: assistantSetup
     };
 
     const { error } = await supabase.from("projects").insert([projectDataForDB]);
@@ -59,13 +68,12 @@ export async function createProject(
 
     updateStatus("Upload successful! Finalizing your project...");
     updateStatus("Analyzing data and generating dashboard suggestions...");
-
-    if (!projectData.csvFile) {
-      return { success: false, error: "Missing file data" };
-    }
     
-    const csvContent = await projectData.csvFile.text();
-    await projectPromptSetup(userData.id, uuid, csvContent, projectData.dataContext);
+    // const csvContent = await projectData.csvFile.text();
+    // await projectPromptSetup(userData.id, uuid, csvContent, projectData.dataContext);
+
+    
+
 
     return { success: true };
   } catch (error) {
