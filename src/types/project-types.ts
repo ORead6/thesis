@@ -1,5 +1,6 @@
 // Types for the project creation flow
 export interface ProjectFormData {
+    sport: string;
     title: string;
     description: string;
     dataContext: string;
