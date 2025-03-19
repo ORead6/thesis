@@ -17,11 +17,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { createClient } from '@/utils/supabase/client';
 
 type KPI = {
-  title: string;
+  header: string;
   value: string;
-  description: string;
+  explanation: string;
 };
 
 const DashboardBuilder = () => {
@@ -33,14 +34,6 @@ const DashboardBuilder = () => {
   const [projectData, setProjectData] = useState<any>(null);
   const [kpiData, setKpiData] = useState<KPI[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
-  
-  // Demo KPI data
-  const demoKpis: KPI[] = [
-    { title: "Win Rate", value: "68%", description: "Percentage of games won this season" },
-    { title: "Scoring Efficiency", value: "1.8", description: "Average goals per game" },
-    { title: "Team Fitness", value: "85%", description: "Players available for selection" },
-    { title: "Possession", value: "59%", description: "Average ball possession percentage" }
-  ];
 
   useEffect(() => {
     const fetchProjectData = async () => {
@@ -50,7 +43,33 @@ const DashboardBuilder = () => {
         // const response = await fetch(`/api/projects/${projectId}`);
         // const data = await response.json();
         
-        
+        // Get project KPI's from API
+        try {
+          // Get userID in supabase
+          const supabase = createClient();
+          const { data } = await supabase.auth.getUser();
+          if (!data?.user) {
+            return { success: false, error: "User not authenticated" };
+          }
+
+          let reqBody = { projectID: projectId, userID: data.user.id };
+          
+          const response = await fetch("/api/getProjectKPIs", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(reqBody),
+          });
+          const responseData = await response.json();
+          const kpiData = responseData.responses.KPIs
+
+          console.log("KPI data:", kpiData);
+          setKpiData(kpiData)
+        } catch (error) {
+          console.error("Error fetching KPI data:", error);
+        }
+
         setProjectData({
           title: "Football Season Analytics",
           sport: "Football",
@@ -58,7 +77,6 @@ const DashboardBuilder = () => {
           createdAt: new Date().toISOString(),
         });
         
-        setKpiData(demoKpis);
         setIsLoading(false);
       } catch (error) {
         console.error("Error fetching project data:", error);
@@ -148,16 +166,16 @@ const DashboardBuilder = () => {
               <Card key={index} className="transition-all hover:shadow-md">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {kpi.title}
+                    {kpi.header}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold" 
+                  <div className="text-xl font-bold" 
                     style={{color: `hsl(var(--chart-${(index % 5) + 1}))`}}>
                     {kpi.value}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {kpi.description}
+                    {kpi.explanation}
                   </p>
                 </CardContent>
               </Card>
