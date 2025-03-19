@@ -15,16 +15,16 @@ import {
 const BasicInformationStep: React.FC<StepProps> = ({ projectData, updateData }) => {
   const sports = [
     "Handball",
-    "Basketball",
-    "American Football",
-    "Football",
-    "Tennis",
-    "Golf",
-    "Baseball",
-    "Hockey",
-    "Cricket",
-    "Rugby",
-    "Volleyball"
+    // "Basketball",
+    // "American Football",
+    // "Football",
+    // "Tennis",
+    // "Golf",
+    // "Baseball",
+    // "Hockey",
+    // "Cricket",
+    // "Rugby",
+    // "Volleyball"
   ];
 
   return (

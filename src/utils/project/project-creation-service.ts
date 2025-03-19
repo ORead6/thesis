@@ -1,11 +1,11 @@
 import { createClient } from '@/utils/supabase/client';
-import { getSignedURL } from '@/app/dashboard/actions';
-import { createAIAssistant, projectPromptSetup } from '@/utils/openai/actions';
+import { getKPISignedURL, getSignedURL } from '@/app/dashboard/actions';
+import { createAIAssistant, KPICreationSteps, projectPromptSetup } from '@/utils/openai/actions';
 import { v4 as uuidv4 } from 'uuid';
 import { ProjectFormData } from '@/types/project-types';
 
 export async function createProject(
-  projectData: ProjectFormData, 
+  projectData: ProjectFormData,
   updateStatus: (status: string) => void
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -18,7 +18,7 @@ export async function createProject(
 
     const userData = data.user;
     updateStatus("Creating project database entry...");
-    
+
     const uuid = uuidv4();
     const supabaseFilePath = `projects/${userData.id}/${uuid}`;
 
@@ -66,14 +66,22 @@ export async function createProject(
       body: projectData.csvFile
     });
 
-    updateStatus("Upload successful! Finalizing your project...");
-    updateStatus("Analyzing data and generating dashboard suggestions...");
-    
-    // const csvContent = await projectData.csvFile.text();
-    // await projectPromptSetup(userData.id, uuid, csvContent, projectData.dataContext);
+    updateStatus("Upload successful! Generating KPI's your project...");
 
-    
+    const kpiCreation = await KPICreationSteps(assistantSetup, uuid, userData.id, projectData.sport);
 
+    updateStatus("KPI's generated! Uploading KPI data...");
+    // Upload KPI Creation to JSON on S3
+    const kpiUploadURL = await getKPISignedURL(uuid);
+    if (!kpiUploadURL?.success) {
+      return { success: false, error: "Error preparing KPI upload. Please try again." };
+    }
+    const kpiSuccessURL = kpiUploadURL.success.url
+    await fetch(kpiSuccessURL, {
+      method: "PUT",
+      body: JSON.stringify(kpiCreation)
+    });
+    updateStatus("KPI data uploaded!");
 
     return { success: true };
   } catch (error) {

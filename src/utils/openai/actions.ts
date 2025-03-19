@@ -7,6 +7,7 @@ import OpenAI from "openai";
 import * as csv from 'csv-parse';
 import { ProjectFormData } from "@/types/project-types";
 import { resourceLimits } from "worker_threads";
+import { kpiContext } from "@/utils/sportsContext/context"
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -201,7 +202,7 @@ export async function KPIGenerator(userID: string, projectUUID: string, csvConte
   }
 }
 
-export async function deleteAIAssistant(assistantData: { assistantData: any; }){
+export async function deleteAIAssistant(assistantData: { assistantData: any; }) {
   let assistantId = assistantData.assistantData.assistant_id
   let fileID = assistantData.assistantData.file_id
 
@@ -435,7 +436,7 @@ export async function createAIAssistant(id: string, uuid: string, projectData: P
   const assistantInstructions = `You are a professional ${projectData.sport} data analysist. When asked any sports data analysis questions, write and run code to answer the question whilst also reffering to the csv provided to obtain accurate results. This is the given context of the data: ${projectData.dataContext}`;
 
   const formData = new FormData();
-  
+
   // Add the file from drag and drop
   formData.append('file', csvFile);
 
@@ -459,4 +460,83 @@ export async function createAIAssistant(id: string, uuid: string, projectData: P
     file_id: uploadFileOpenaiAPI.id,
     assistant_id: assistant.id
   })
+}
+
+export async function KPICreationSteps(
+  assistantSetup: { file_id: string; assistant_id: string },
+  uuid: string,
+  userId: string,
+  projectSport: string
+) {
+  // Implementation goes here
+  const thread = await openai.beta.threads.create();
+
+  let theContext;
+  switch (projectSport.toLowerCase()) {
+    case "handball":
+      theContext = kpiContext.handball;
+      break;
+    default:
+      theContext = "No context found";
+      break;
+  }
+
+  const xyz = "The KPI's must also be selected from the attatched list: ${theContext}, where you prioritise number over number 10, if the data set does not allow you to accurately calculate that KPI move onto the next on on the list. If you run out of KPI's leave it blank and return as many as you can. 2"
+
+  await openai.beta.threads.messages.create(thread.id, {
+    role: "user",
+    content: `Generate 4 insightful KPI's based on the csv Data you have access to. You must return it as a JSON format in the form {KPIs: [{header: 'KPI Title', value: 'KPI Value (number, percentage, or short text)', explanation: 'Brief explanation (5-10 words max)'}]}`
+  });
+
+  const run = await openai.beta.threads.runs.create(thread.id, {
+    assistant_id: assistantSetup.assistant_id
+  });
+
+  let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+
+  while (runStatus.status !== "completed") {
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+    runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    console.log(`Run status: ${runStatus.status}`);
+
+    // Handle cases where the run requires action or fails
+    if (["failed", "cancelled", "expired"].includes(runStatus.status)) {
+      console.error(`Run ended with status: ${runStatus.status}`);
+      break;
+    }
+  }
+
+  if (runStatus.status === "completed") {
+    const messages = await openai.beta.threads.messages.list(thread.id);
+
+    // Process and use the assistant's response
+    const assistantResponses = messages.data.filter(msg => msg.role === "assistant");
+    const latestResponse = assistantResponses[0];
+
+    console.log("Latest Response: ", latestResponse)
+
+    let kpiOutput;
+    if (latestResponse.content[0].type === 'text') {
+      kpiOutput = processAssistantResponse(latestResponse.content[0].text.value);
+    } else {
+      return;
+    }
+
+    return(kpiOutput);
+  }
+}
+
+function processAssistantResponse(responseText: string) {
+  if (responseText.includes('{') && responseText.includes('}')) {
+    try {
+      const jsonStart = responseText.indexOf('{');
+      const jsonEnd = responseText.lastIndexOf('}') + 1;
+      const jsonStr = responseText.substring(jsonStart, jsonEnd);
+      const jsonData = JSON.parse(jsonStr);
+      console.log("Parsed JSON data:", jsonData);
+      return jsonData;
+    } catch (e) {
+      console.log("Response contained JSON-like content but couldn't be parsed");
+    }
+  }
 }
