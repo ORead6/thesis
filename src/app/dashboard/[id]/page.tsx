@@ -50,8 +50,7 @@ const DashboardBuilder = () => {
         // const response = await fetch(`/api/projects/${projectId}`);
         // const data = await response.json();
         
-        // For now, simulate a delay and set mock data
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         setProjectData({
           title: "Football Season Analytics",
           sport: "Football",
