@@ -83,7 +83,7 @@ export function useProjectCreation(onSuccessCallback: () => void) {
 
   // Check if current step can proceed
   const canProceed = () => {
-    if (step === 1) return projectData.title.trim().length > 0;
+    if (step === 1) return (projectData.title.trim().length > 0) && (projectData.sport);
     if (step === 3) return Boolean(projectData.csvFile) && projectData.dataContext.trim().length > 0;
     return true;
   };
